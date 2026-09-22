@@ -141,10 +141,17 @@ function suspScene(s: Scene | null): Scene | null {
 
 const components = (c: ChainComplex) => homology(c)[0]?.betti ?? 0;
 
-/** Fallback aus dem Kettenkomplex allein: ohne 1-Zellen trivial, ohne 2-Zellen frei */
+/**
+ * Fallback aus dem Kettenkomplex allein: ohne 1-Zellen trivial, ohne 2-Zellen frei; bei genau einer
+ * Schleife ist jede 2-Zelle bis auf Homotopie a^(Grad) angeheftet (π₁(S¹) = ℤ), also ⟨a | a^{d₁}, …⟩.
+ */
 function fallbackPi1(c: ChainComplex): Presentation | null {
   if (c.cells[0] === 1 && (c.cells[1] ?? 0) === 0) return trivial();
   if (c.cells[0] === 1 && (c.cells[2] ?? 0) === 0) return free(c.cells[1]!, 'x');
+  if (c.cells[0] === 1 && c.cells[1] === 1) {
+    const degrees = c.d[2]![0]!.map(Number);
+    return { gens: ['a'], rels: degrees.filter((d) => d !== 0).map((d) => Array<number>(Math.abs(d)).fill(Math.sign(d))) };
+  }
   return null;
 }
 

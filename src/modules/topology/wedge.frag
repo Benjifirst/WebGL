@@ -8,6 +8,7 @@ uniform vec4 u_pa[16];   // Mittelpunkt, Typ (0 Punkt, 1 Kugel, 2 Kreis, 3 Torus
 uniform vec4 u_pb[16];   // Achse (Normale bzw. Richtung), Gruppe
 uniform vec4 u_pc[16];   // R, r, Länge, –
 uniform float u_fitScale;   // Weltmaßstab (Einpassen)
+uniform float u_shiftUv;    // Bildmitte nach rechts (Panel)
 
 const float BLEND = 0.35;
 
@@ -75,6 +76,7 @@ vec3 groupColor(float g) {
 
 void main() {
   vec2 uv = (fragCoord() - 0.5 * u_resolution) / u_resolution.y;
+  uv.x -= u_shiftUv;
   vec3 ro = u_camPos;
   vec3 rd = normalize(uv.x * u_camRight + uv.y * u_camUp + FOCAL * u_camFwd);
   float pixelAngle = 1.0 / (FOCAL * u_resolution.y);

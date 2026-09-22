@@ -73,6 +73,8 @@ describe('Ausdruckssprache für Räume', () => {
     ['susp(S0 + pt)', 'F₂'],
     ['CP2 v S2', '1'],
     ['T2 / sk(1)', '1'],
+    ['Mb / ∂', 'ℤ/2'],
+    ['D2 / ∂', '1'],
     ['⟨a, b | a^2, b^3, (ab)^5⟩', 'A₅ (Ordnung 60)'],
   ])('π₁(%s) = %s', (src, name) => {
     expect(pi1(src)).toBe(name);
@@ -155,7 +157,7 @@ describe('Simplizialkomplexe', () => {
   const byLabel = (l: string) => simplicial(parseFacets(SIMPLICIAL_PRESETS.find((p) => p.label.startsWith(l))!.facets));
 
   it('Minimale Triangulierungen', () => {
-    const t = byLabel('Torus');
+    const t = byLabel('Torus (7');
     expect(t.f).toEqual([7, 21, 14]);
     expect(homology(t.complex).map(formatGroup)).toEqual(['ℤ', 'ℤ²', 'ℤ']);
     expect(t.orientable).toBe(true);
@@ -173,6 +175,53 @@ describe('Simplizialkomplexe', () => {
     expect(homology(s3.complex).map(formatGroup)).toEqual(['ℤ', '0', '0', 'ℤ']);
     expect(euler(s3.complex)).toBe(0);
   });
+
+  it('neue Vorlagen: Oktaeder, Ikosaeder, Gittertorus, Kegel', () => {
+    expect(homology(byLabel('S² (Ikosaeder').complex).map(formatGroup)).toEqual(['ℤ', '0', 'ℤ']);
+    expect(byLabel('S² (Ikosaeder').f).toEqual([12, 30, 20]);
+    expect(homology(byLabel('S² (Oktaeder').complex).map(formatGroup)).toEqual(['ℤ', '0', 'ℤ']);
+    const t = byLabel('Torus (6');
+    expect(t.f).toEqual([36, 108, 72]);
+    expect(homology(t.complex).map(formatGroup)).toEqual(['ℤ', 'ℤ²', 'ℤ']);
+    expect(t.orientable).toBe(true);
+    const d = byLabel('Kreisscheibe');
+    expect(homology(d.complex).map(formatGroup)).toEqual(['ℤ', '0', '0']);
+    expect(d.boundaryFaces).toBe(5);
+  });
+
+  it.each(SIMPLICIAL_PRESETS.filter((p) => p.coords).map((p) => [p.label, p] as const))(
+    '%s: Koordinaten ohne Selbstdurchdringung',
+    (_, preset) => {
+      const info = simplicial(parseFacets(preset.facets));
+      const P = (v: string) => preset.coords![v]!;
+      // alle 2-Seiten
+      const tris = new Map<string, string[]>();
+      for (const f of info.facets) for (let a = 0; a < f.length; a++) for (let b = a + 1; b < f.length; b++) for (let c = b + 1; c < f.length; c++) {
+        tris.set([f[a], f[b], f[c]].join(','), [f[a]!, f[b]!, f[c]!]);
+      }
+      const list = [...tris.values()];
+      const sub = (a: number[], b: number[]) => a.map((x, i) => x - b[i]!);
+      const cross = (a: number[], b: number[]) => [a[1]! * b[2]! - a[2]! * b[1]!, a[2]! * b[0]! - a[0]! * b[2]!, a[0]! * b[1]! - a[1]! * b[0]!];
+      const dot = (a: number[], b: number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!;
+      const pierces = (p: number[], q: number[], a: number[], b: number[], c: number[]) => {
+        const n = cross(sub(b, a), sub(c, a));
+        const dp = dot(n, sub(p, a)), dq = dot(n, sub(q, a));
+        if (dp * dq >= 0) return false;
+        const t = dp / (dp - dq);
+        const x = p.map((v, i) => v + t * (q[i]! - v));
+        const s1 = dot(cross(sub(b, a), sub(x, a)), n), s2 = dot(cross(sub(c, b), sub(x, b)), n), s3 = dot(cross(sub(a, c), sub(x, c)), n);
+        return (s1 > 1e-12 && s2 > 1e-12 && s3 > 1e-12) || (s1 < -1e-12 && s2 < -1e-12 && s3 < -1e-12);
+      };
+      for (const A of list) for (const B of list) {
+        if (A === B) continue;
+        for (let e = 0; e < 3; e++) {
+          const u = A[e]!, v = A[(e + 1) % 3]!;
+          if (B.includes(u) || B.includes(v)) continue;
+          expect(pierces(P(u), P(v), P(B[0]!), P(B[1]!), P(B[2]!)), `${A} durch ${B}`).toBe(false);
+        }
+      }
+    },
+  );
 
   it('Eingabeformate und Nicht-Pseudomannigfaltigkeit', () => {
     expect(parseFacets('[1,2,3], [1,3,4]')).toEqual([['1', '2', '3'], ['1', '3', '4']]);

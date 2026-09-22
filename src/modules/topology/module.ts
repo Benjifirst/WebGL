@@ -1,6 +1,7 @@
 import type { ModuleHost, VizModule } from '../types';
 import { tileClipTransform } from '../../core/tiles';
 import { formulaField } from '../../ui/formula';
+import { panelShift } from '../../ui/layout';
 import { read } from '../../ui/urlState';
 import { h, menu, section, segmented, slider, toggle } from '../../ui/widgets';
 import { GridMesh } from '../shapes/mesh';
@@ -8,8 +9,8 @@ import { orbitCamera } from '../shapes/orbit';
 import sceneSrc from '../shapes/scene.glsl?raw';
 import { cohomology, dim, euler, formatGroup, homology } from './chain';
 import type { ChainComplex } from './chain';
-import { drawDiagram, drawGraph, edgeColorMap } from './diagram';
-import { drawCellDiagram, drawComplex3D, layout3d } from './draw2d';
+import { drawDiagram, edgeColorMap } from './diagram';
+import { cellName, describeCells, drawCellDiagram, drawComplex3D, layout3d, normalizePoints } from './draw2d';
 import type { Box, V3 } from './draw2d';
 import { analyze, formatGroupInfo } from './group';
 import type { GroupInfo, Presentation } from './group';
@@ -134,9 +135,11 @@ let faces: Face[] = parseWord(word);
 let info: SurfaceInfo = classify(faces);
 let spaceExpr = 'S2 v S1 v S1';
 let space: Space = parseSpace(spaceExpr);
-let facetText = SIMPLICIAL_PRESETS[2]!.facets;
+let facetText = SIMPLICIAL_PRESETS[0]!.facets;
 let simp: SimplicialInfo = simplicial(parseFacets(facetText));
 let simpLayout: V3[] = [];
+let simpEmbedded = false;
+let simpTransparent = false;
 
 let t = 1;
 let playing = false;
@@ -218,7 +221,14 @@ function setSpace(text: string, hst: ModuleHost | null): void {
 function setFacets(text: string, hst: ModuleHost | null): void {
   simp = simplicial(parseFacets(text));
   const idx = new Map(simp.vertices.map((v, i) => [v, i]));
-  simpLayout = layout3d(simp.vertices.length, simp.edges.map(([a, b]) => [idx.get(a)!, idx.get(b)!]));
+  // Bekannte Triangulierung mit Einbettung → deren Koordinaten, sonst Anordnung nach Graphabständen
+  const preset = SIMPLICIAL_PRESETS.find((p) => p.coords && p.facets.trim() === text.trim());
+  simpEmbedded = !!preset && simp.vertices.every((v) => preset.coords![v]);
+  simpLayout = normalizePoints(
+    simpEmbedded
+      ? simp.vertices.map((v) => preset!.coords![v]!)
+      : layout3d(simp.vertices.length, simp.edges.map(([a, b]) => [idx.get(a)!, idx.get(b)!])),
+  );
   facetText = text;
   afterChange(hst);
 }
@@ -299,6 +309,11 @@ function pi1Rows(p: Presentation | null, note?: string): [string, string | HTMLE
   ];
 }
 
+/** Zellaufbau in Worten */
+function cellList(c: ChainComplex): HTMLElement {
+  return section('Zellaufbau', h('ul', { class: 'cells' }, ...describeCells(c).map((line) => h('li', {}, line))));
+}
+
 /** Randmatrizen ∂ₖ als kleine Tabellen (aufklappbar) */
 function chainDetails(c: ChainComplex): HTMLElement {
   const blocks: HTMLElement[] = [];
@@ -316,8 +331,8 @@ function chainDetails(c: ChainComplex): HTMLElement {
     const table = h(
       'table',
       { class: 'matrix' },
-      h('tr', {}, h('th', {}, ''), ...Array.from({ length: cols }, (_, j) => h('th', {}, `${k}.${j + 1}`))),
-      ...D.map((r, i) => h('tr', {}, h('th', {}, `${k - 1}.${i + 1}`), ...r.map((v) => h('td', { class: v === 0n ? 'zero' : v > 0n ? 'pos' : 'neg' }, String(v))))),
+      h('tr', {}, h('th', {}, ''), ...Array.from({ length: cols }, (_, j) => h('th', {}, cellName(k, j)))),
+      ...D.map((r, i) => h('tr', {}, h('th', {}, cellName(k - 1, i)), ...r.map((v) => h('td', { class: v === 0n ? 'zero' : v > 0n ? 'pos' : 'neg' }, String(v))))),
     );
     blocks.push(h('div', { class: 'matrix-block' }, h('span', { class: 'hint' }, `∂${sub(k)}: C${sub(k)} → C${sub(k - 1)}`), table));
   }
@@ -351,6 +366,7 @@ function polygonFacts(): HTMLElement {
     section('Klassifikation', facts(rows)),
     section('Fundamentalgruppe', facts(pi1Rows(s.pi1, s.connected ? undefined : 'Komponente der ersten Ecke'))),
     section('Homologie', homologyTable(s.complex)),
+    ...(s.surface && s.connected ? [] : [cellList(s.complex)]),
     chainDetails(s.complex),
   );
 }
@@ -361,7 +377,11 @@ function note3D(): string {
       ? '3D: Keilprodukte als Blumenstrauß – alle Teile berühren sich im goldenen Klebepunkt.'
       : 'Bild: Zellstruktur mit den Randabbildungen. 3D gibt es für Keilprodukte aus pt, S⁰, S¹, S², D¹, D², T² und F(g).';
   }
-  if (mode === 'simplicial') return '3D: Ecken räumlich nach Graphabständen angeordnet – Ziehen dreht. Nicht jede Triangulierung ist ohne Selbstdurchdringung einbettbar.';
+  if (mode === 'simplicial') {
+    return simpEmbedded
+      ? '3D: echte Einbettung als Polyeder – jedes Dreieck ist ein 2-Simplex, die Linien sind die Kanten (1-Simplizes). Ziehen dreht.'
+      : '3D: Ecken nach Graphabständen angeordnet (keine bekannte Einbettung) – Dreiecke können sich dabei durchdringen. Ziehen dreht.';
+  }
   const s = info;
   if (!s.connected) return 'Nicht zusammenhängend – Bild: Zellstruktur.';
   if (!s.surface) return 'Keine Fläche – Bild: Zellstruktur mit Randabbildungen; Homologie und π₁ gelten trotzdem.';
@@ -397,7 +417,7 @@ export const topologyModule: VizModule = {
     return sceneSrc + (lastShaderKind === 'wedge' ? wedgeFragSrc : BACKGROUND_ONLY);
   },
 
-  uniforms({ view }) {
+  uniforms({ view, width, height, pixelRatio }) {
     const { prims: list, radius } = prims();
     const pa: number[] = [], pb: number[] = [], pc: number[] = [];
     for (let i = 0; i < 16; i++) {
@@ -414,6 +434,7 @@ export const topologyModule: VizModule = {
       u_pb: pb,
       u_pc: pc,
       u_fitScale: 2.1 / Math.max(radius, 0.5),
+      u_shiftUv: (panelShift(width / pixelRatio) * width) / height / 2,
     };
   },
 
@@ -437,6 +458,7 @@ export const topologyModule: VizModule = {
       u_gridLines: gridLines ? 16 : 0,
       u_edgeColor: m.edges.flatMap((l) => (l ? hexToRgb(colors.get(l)!) : [0, 0, 0])),
       u_edgeOn: m.edges.map((l) => (l ? 1 : 0)),
+      u_shift: panelShift(f.width / f.pixelRatio),
     });
   },
 
@@ -463,6 +485,7 @@ export const topologyModule: VizModule = {
         tris,
         { yaw, pitch, distance: i.view.scale * DIST_PER_SCALE },
         box,
+        simpTransparent,
       );
       return;
     }
@@ -675,6 +698,7 @@ function spaceUi(hst: ModuleHost): HTMLElement {
     factsBox.replaceChildren(
       section('Fundamentalgruppe', facts(pi1Rows(space.pi1, space.pi1Note))),
       section('Homologie', homologyTable(c), h('p', { class: 'hint' }, `Dimension ${dim(c)} · ${c.cells.reduce((a, b) => a + b, 0)} Zellen`)),
+      cellList(c),
       chainDetails(c),
     );
     note.textContent = note3D();
@@ -729,7 +753,6 @@ function spaceUi(hst: ModuleHost): HTMLElement {
 }
 
 function simplicialUi(hst: ModuleHost): HTMLElement {
-  const graph = h('div', { class: 'diagram-box' });
   const factsBox = h('div', {});
   const note = h('p', { class: 'hint' });
   const field = formulaField({
@@ -739,8 +762,6 @@ function simplicialUi(hst: ModuleHost): HTMLElement {
     apply: (text) => setFacets(text, hst),
   });
   rerender = () => {
-    const tri = simp.facets.filter((f) => f.length === 3);
-    graph.replaceChildren(simp.vertices.length <= 40 ? drawGraph(simp.vertices, simp.edges, tri) : h('p', { class: 'hint' }, 'Zu viele Ecken für das Diagramm.'));
     const rows: [string, string][] = [
       ['f-Vektor', `(${simp.f.join(', ')})`],
       ['Dimension', simp.pure !== null ? `${simp.pure} (rein)` : `${simp.f.length - 1} (nicht rein)`],
@@ -765,8 +786,7 @@ function simplicialUi(hst: ModuleHost): HTMLElement {
     'div',
     { class: 'stack' },
     field.el,
-    h('div', { class: 'toolbar' }, examples),
-    graph,
+    h('div', { class: 'toolbar' }, examples, toggle('durchsichtig', simpTransparent, (v) => ((simpTransparent = v), hst.requestRender()))),
     note,
     factsBox,
     h(

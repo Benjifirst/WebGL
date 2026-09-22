@@ -16,6 +16,7 @@ Flächen); alle Module teilen sich eine gemeinsame Render-Infrastruktur.
 | **Hyperbolisch** | Parkettierungen {p,q} in Poincaré-Scheibe, Halbebene oder Klein-Modell; sieben uniforme Varianten per Wythoff-Konstruktion; Ziehen verschiebt hyperbolisch, „Bewegen“ gleitet entlang einer Geodäte. |
 | **Mandelbrot** | Deep Zoom bis ~10⁻²⁹⁰ per Störungsrechnung mit Referenzorbit in beliebiger Präzision; „Minibrot suchen“ findet per Newton-Verfahren Mini-Mandelbrots als Zoomziele. |
 | **Topologie** | *Polygone*: 2-dimensionale CW-Komplexe aus Kantenwörtern (`a b a⁻¹ b⁻¹`, mehrere Polygone, beliebige Vielfachheiten) mit Diagramm, Flächenerkennung über Ecken-Links, Klassifikation und Verklebe-Animation. *Räume*: CW-Räume beliebiger Dimension per Ausdruck – Sⁿ, Dⁿ, Tⁿ, ℝPⁿ, ℂPⁿ, K, Möbiusband, L(p,q), M(n,k), F(g), N(k), Poincaré-Sphäre und Präsentationskomplexe `⟨a, b | a², b³⟩` mit ∨, #, ×, ∧, Σ, ⊔, Rand `∂X`, Kegel, Verbund, Zellen anheften (`∪ e²(2)`) und Quotienten (`/ ∂`, `/ sk(1)`); Keilprodukte als 3D-Blumenstrauß, sonst Zellstruktur mit Randabbildungen. *Simplizial*: Facettenlisten (z. B. 7-Ecken-Torus, 6-Ecken-ℝP²) mit drehbarem 3D-Modell. Überall exakte Homologie Hₖ über ℤ (Smith-Normalform), Kohomologie, Randmatrizen, χ, Poincaré-Polynom und π₁: vereinfacht (Tietze), erkannt (frei, abelsch, Flächengruppe, freies Produkt) und bei endlichen Gruppen per Todd–Coxeter gezählt. |
+| **Knoten** | Knoten und Verschlingungen aus einem Katalog (3₁, 4₁, 5₁, 5₂, 6₁–6₃, 7₁, 8₁₉, Altweiber-/Kreuzknoten, Hopf, Whitehead, Borromäische Ringe), als Torusknoten T(p,q), als Abschluss eines Zopfs (`s1 s2^-1 …`) oder als eigene Raumkurve (x(t), y(t), z(t)). 3D-Schlauch und Knotendiagramm (Projektion mit möglichst wenigen, gut lesbaren Kreuzungen). Invarianten: Writhe, Verschlingungszahlen, Alexander-Polynom (Fox-Kalkül, exakte Determinante über ℤ[t]), Determinante, Färbbarkeit mod 3/5, Jones-Polynom (Kauffman-Klammer) mit Chiralitätstest, Knotengruppe (Wirtinger, vereinfacht) und Erkennung bekannter Knoten. |
 
 ## Bedienung
 
@@ -43,7 +44,7 @@ src/
                prelude.glsl (gemeinsame Shader-Präambel), tiles.ts
   math/        parser.ts (Tokenizer → Recursive Descent → AST), real.ts / complex.ts (Codegen + Referenz),
                diff.ts (symbolisches Ableiten, Einsetzen eigener Funktionen)
-  modules/     plot, domain, shapes, hyperbolic, mandelbrot, topology, grid (Testmodul, nur per #m=grid)
+  modules/     plot, domain, shapes, hyperbolic, mandelbrot, topology, knots, grid (Testmodul, nur per #m=grid)
   ui/          Panel, Formelfelder, Widgets, URL-Zustand, Achsen (Beschriftungsebene)
 ```
 
@@ -76,6 +77,11 @@ src/
   werden adaptiv abgetastet (Polstellen und Ränder des Definitionsbereichs per Bisektion), implizite
   Kurven und Bereiche im Shader über |F|/|∇F|. Integrale per Tanh-Sinh-Quadratur (verträgt
   Randsingularitäten), Γ per Stirling-Reihe, erf per Reihe bzw. Kettenbruch.
+- **Knoten**: Kreuzungen per Sweep über die projizierten Segmente, Projektionsrichtung unter 41
+  Kandidaten nach Kreuzungszahl und Lesbarkeit (Kreuzungswinkel, keine Kanten-Ansicht). Bögen zwischen
+  Unterführungen für Wirtinger/Alexander/Färbungen, Kanten zwischen allen Durchgängen für den PD-Code.
+  Alexander: Bareiss über ℤ[t] mit exakter Polynomdivision; Jones: Zustandssumme über 2ⁿ Glättungen
+  (bis 22 Kreuzungen). Schlauch mit Paralleltransport-Rahmen, Restverdrehung gleichmäßig verteilt.
 - **Mandelbrot**: δ_{n+1} = 2Z_nδ_n + δ_n² + δc in float, unterhalb 2⁻¹⁰⁰ als Mantisse/Exponent;
   Rebasing nach Zhuoran, Glitch-Erkennung nach Pauldelbrot (zum Vergleich einblendbar);
   Innen-Erkennung über Konvergenz an aufeinanderfolgenden Rebasings. Minibrot-Suche: Ball-Perioden-

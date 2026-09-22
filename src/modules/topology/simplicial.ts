@@ -174,19 +174,122 @@ function edgePathGroup(verts: string[][], edges: string[][], triangles: string[]
   return { gens: gensE.map((e) => `${e[0]}${e[1]}`), rels };
 }
 
+export type V3 = [number, number, number];
+
+export interface SimplicialPreset {
+  label: string;
+  facets: string;
+  title: string;
+  /** Ecke → Raumkoordinaten (überschneidungsfreie Einbettung, falls es eine gibt) */
+  coords?: Record<string, V3>;
+}
+
+const TAU = 2 * Math.PI;
+
+/** Ikosaeder: Ecken (0, ±1, ±φ) zyklisch, Dreiecke = Tripel mit paarweisem Abstand 2 */
+function icosahedron(): SimplicialPreset {
+  const phi = (1 + Math.sqrt(5)) / 2;
+  const pts: V3[] = [];
+  for (const a of [-1, 1]) for (const b of [-phi, phi]) pts.push([0, a, b], [a, b, 0], [b, 0, a]);
+  const d = (i: number, j: number) => Math.hypot(pts[i]![0] - pts[j]![0], pts[i]![1] - pts[j]![1], pts[i]![2] - pts[j]![2]);
+  const faces: number[][] = [];
+  for (let i = 0; i < 12; i++) for (let j = i + 1; j < 12; j++) for (let k = j + 1; k < 12; k++) {
+    if ([d(i, j), d(j, k), d(i, k)].every((x) => Math.abs(x - 2) < 1e-9)) faces.push([i + 1, j + 1, k + 1]);
+  }
+  return {
+    label: 'S² (Ikosaeder, 12 Ecken)',
+    facets: faces.map((f) => f.join(' ')).join('; '),
+    title: '20 Dreiecke, jede Ecke hat 5 Nachbarn',
+    coords: Object.fromEntries(pts.map((p, i) => [String(i + 1), p])),
+  };
+}
+
+/** Torus aus einem n×n-Gitter, jedes Quadrat diagonal geteilt, auf einen Rotationstorus gesetzt */
+function gridTorus(n: number): SimplicialPreset {
+  const id = (i: number, j: number) => ((i + n) % n) * n + ((j + n) % n) + 1;
+  const faces: number[][] = [];
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+    faces.push([id(i, j), id(i + 1, j), id(i + 1, j + 1)], [id(i, j), id(i + 1, j + 1), id(i, j + 1)]);
+  }
+  const coords: Record<string, V3> = {};
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+    const u = (TAU * i) / n, v = (TAU * j) / n + Math.PI / n;
+    coords[String(id(i, j))] = [(2 + Math.cos(v)) * Math.cos(u), Math.sin(v), (2 + Math.cos(v)) * Math.sin(u)];
+  }
+  return {
+    label: `Torus (${n}×${n}-Gitter)`,
+    facets: faces.map((f) => f.join(' ')).join('; '),
+    title: `${n * n} Ecken, ${2 * n * n} Dreiecke – Quadrate eines Gitters, gegenüberliegende Ränder verklebt`,
+    coords,
+  };
+}
+
+// Császár-Polyeder: überschneidungsfreie Einbettung des 7-Ecken-Torus (Zuordnung per Suche geprüft)
+const CSASZAR: V3[] = [[3, -3, 0], [-3, 3, 0], [-3, -3, 1], [3, 3, 1], [-1, -2, 3], [1, 2, 3], [0, 0, 15]];
+const CSASZAR_LABEL = [0, 1, 4, 3, 6, 2, 5];
+
 /** Bekannte Triangulierungen */
-export const SIMPLICIAL_PRESETS: readonly { label: string; facets: string; title: string }[] = [
-  { label: 'S² (Tetraeder)', facets: '123 124 134 234', title: 'Rand des 3-Simplex' },
-  { label: 'S³ (Rand des 4-Simplex)', facets: '1234 1235 1245 1345 2345', title: '5 Tetraeder' },
+export const SIMPLICIAL_PRESETS: readonly SimplicialPreset[] = [
   {
-    label: 'Torus (7 Ecken)',
+    label: 'S² (Tetraeder)',
+    facets: '123 124 134 234',
+    title: 'Rand des 3-Simplex',
+    coords: { 1: [1, 1, 1], 2: [1, -1, -1], 3: [-1, 1, -1], 4: [-1, -1, 1] },
+  },
+  {
+    label: 'S² (Oktaeder)',
+    facets: '135 145 136 146 235 245 236 246',
+    title: '6 Ecken ±x, ±y, ±z',
+    coords: { 1: [1, 0, 0], 2: [-1, 0, 0], 3: [0, 1, 0], 4: [0, -1, 0], 5: [0, 0, 1], 6: [0, 0, -1] },
+  },
+  icosahedron(),
+  gridTorus(6),
+  {
+    label: 'Torus (7 Ecken, Császár)',
     // Möbius–Császár: {i, i+1, i+3} und {i, i+2, i+3} mod 7
     facets: Array.from({ length: 7 }, (_, i) =>
       [[i, i + 1, i + 3], [i, i + 2, i + 3]].map((t) => t.map((v) => (v % 7) + 1).join('')).join(' '),
     ).join(' '),
-    title: 'Minimale Triangulierung (Möbius–Császár)',
+    title: 'Minimale Triangulierung, als Császár-Polyeder ohne Selbstdurchdringung eingebettet',
+    // linear gestaucht (Einbettungen bleiben unter linearen Abbildungen überschneidungsfrei), Spitze nach oben
+    coords: Object.fromEntries(CSASZAR_LABEL.map((k, i) => {
+      const [x, y, z] = CSASZAR[k]!;
+      return [String(i + 1), [x, z * 0.35, y] as V3];
+    })),
   },
-  { label: 'ℝP² (6 Ecken)', facets: '123 134 145 156 162 235 346 452 563 624', title: 'Halb-Ikosaeder' },
-  { label: 'Möbiusband (5 Ecken)', facets: '123 234 345 451 512', title: '{i, i+1, i+2} mod 5' },
-  { label: 'Zwei Dreiecke, ein Punkt', facets: '123 145', title: 'Keilprodukt zweier Scheiben – keine Pseudomannigfaltigkeit' },
+  {
+    label: 'Kreisscheibe (Kegel über Fünfeck)',
+    facets: '012 023 034 045 051',
+    title: 'Mitte 0, Rand 1–5',
+    coords: {
+      0: [0, 0.6, 0],
+      ...Object.fromEntries([1, 2, 3, 4, 5].map((k) => [String(k), [Math.cos((TAU * k) / 5), 0, Math.sin((TAU * k) / 5)] as V3])),
+    },
+  },
+  {
+    label: 'Möbiusband (5 Ecken)',
+    facets: '123 234 345 451 512',
+    title: '{i, i+1, i+2} mod 5 – alle Ecken liegen auf dem Randkreis',
+    coords: Object.fromEntries(
+      [1, 2, 3, 4, 5].map((k) => {
+        // Randkanten sind {i, i+2}: der Rand läuft 1 → 3 → 5 → 2 → 4 und dabei zweimal herum
+        const U = (2 * TAU * ((3 * (k - 1)) % 5)) / 5;
+        const w = 0.8;
+        return [String(k), [(1.6 + w * Math.cos(U / 2)) * Math.cos(U), w * Math.sin(U / 2), (1.6 + w * Math.cos(U / 2)) * Math.sin(U)] as V3];
+      }),
+    ),
+  },
+  { label: 'ℝP² (6 Ecken)', facets: '123 134 145 156 162 235 346 452 563 624', title: 'Halb-Ikosaeder – in ℝ³ nicht einbettbar, daher mit Durchdringungen gezeichnet' },
+  {
+    label: 'S³ (Rand des 4-Simplex)',
+    facets: '1234 1235 1245 1345 2345',
+    title: '5 Tetraeder; gezeichnet als Schlegel-Diagramm (Ecke 5 in der Mitte)',
+    coords: { 1: [1, 1, 1], 2: [1, -1, -1], 3: [-1, 1, -1], 4: [-1, -1, 1], 5: [0, 0, 0] },
+  },
+  {
+    label: 'Zwei Dreiecke, ein Punkt',
+    facets: '123 145',
+    title: 'Keilprodukt zweier Scheiben – keine Pseudomannigfaltigkeit',
+    coords: { 1: [0, 0, 0], 2: [1.5, 1, 0], 3: [1.5, -1, 0], 4: [-1.5, 0, 1], 5: [-1.5, 0, -1] },
+  },
 ];

@@ -482,20 +482,22 @@ input[type='range'] {
   user-select: all;
 }
 
-/* Modul-Tabs: bei vielen Modulen umbrechen statt überlaufen */
+/* Modul-Tabs: gleichmäßiges Raster (zwei Reihen à vier) statt ungleichem Umbruch */
 #panel {
   overflow-x: hidden;
 }
 
 #panel header .segmented {
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   min-width: 0;
 }
 
 #panel header .segmented button {
   padding: 4px 4px;
-  font-size: 11.5px;
-  letter-spacing: -0.01em;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---- Export ---- */
@@ -810,4 +812,23 @@ table.matrix td.neg {
 
 [hidden] {
   display: none !important;
+}
+
+ul.cells {
+  margin: 0;
+  padding-left: 16px;
+  font: 12px var(--mono);
+  color: var(--text);
+}
+
+ul.cells li {
+  margin: 1px 0;
+}
+
+canvas.knot-diagram {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 360 / 220;
+  border-radius: 8px;
+  background: #15171c;
 }

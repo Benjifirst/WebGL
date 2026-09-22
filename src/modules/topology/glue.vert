@@ -14,6 +14,7 @@ uniform vec3  u_camUp;
 uniform vec3  u_camFwd;
 uniform float u_aspect;
 uniform vec4  u_tileClip;
+uniform float u_shift;   // Verschiebung in NDC-x (Bildmitte rechts neben dem Panel)
 
 out vec3 v_pos;
 out vec3 v_normal;
@@ -34,7 +35,7 @@ vec3 gl3(vec3 m) { return vec3(m.x, m.z, -m.y); }
 
 // Torus a b a⁻¹ b⁻¹: erst Blatt zum Zylinder rollen (v), dann Zylinder zum Ring biegen (u)
 vec3 torus(vec2 uv, float t) {
-  const float R = 1.0, r = 0.42;
+  const float R = 1.0, r = 0.5;
   float W = TAU * R, H = TAU * r;
   float sA = clamp(2.0 * t, 0.0, 1.0), sB = clamp(2.0 * t - 1.0, 0.0, 1.0);
   // Stufe A: Querschnitt um die Achse (y = 0, z = ρ), ρ = H / (2π·sA)
@@ -51,8 +52,28 @@ vec3 torus(vec2 uv, float t) {
   vec3 C = vec3(sinc(x, b), 0.0, zAxis + cosc(x, b));
   vec3 n = vec3(-sin(th), 0.0, cos(th));
   vec3 p = C + vec3(0.0, yv, 0.0) + offZ * n;
-  float Rb = sB > 0.0 ? W / (TAU * sB) : 0.0;
-  return p - vec3(0.0, 0.0, zAxis + Rb) * smoothstep(0.0, 1.0, t);
+  return p;
+}
+
+// Kleinsche Flasche a b a b⁻¹ in drei Schritten: (1) Blatt quer aufrollen (b wird verklebt),
+// (2) Zylinder zum Ring biegen wie beim Torus, (3) Querschnitt von Kreis zur Acht verformen und dabei
+// einmal um 180° drehen – so treffen sich die Enden mit Spiegelung (a mit Umkehrung).
+vec3 kleinStaged(vec2 uv, float t) {
+  const float R = 1.0, r = 0.5;
+  float s12 = clamp(t / 0.7, 0.0, 1.0);          // Aufrollen + Biegen (Torus-Schritte)
+  float s3 = smoothstep(0.7, 1.0, t);            // Querschnitt → Acht mit Halbdrehung
+  vec3 ring = torus(uv.yx, s12);
+  if (s3 <= 0.0) return ring;
+  // Ringkoordinaten wie in torus() bei voller Biegung, zentriert
+  vec3 ringC = torus(uv.yx, 1.0) - vec3(0.0, 0.0, r + R);
+  // Phase so gewählt, dass die Acht aus dem Kreisquerschnitt (radial cos V) hervorgeht
+  float U = TAU * (uv.y - 0.5), V = TAU * (uv.x - 0.5) + 0.5 * PI;
+  vec3 C = R * vec3(sin(U), 0.0, -cos(U));
+  vec3 outward = vec3(sin(U), 0.0, -cos(U));
+  vec3 axial = vec3(0.0, 1.0, 0.0);
+  float c = cos(U / 2.0), sn = sin(U / 2.0);
+  vec3 k8 = C + 0.55 * ((c * sin(V) - sn * sin(2.0 * V)) * outward + (sn * sin(V) + c * sin(2.0 * V)) * axial);
+  return mix(ringC, k8, s3) + vec3(0.0, 0.0, r + R) * (1.0 - s3);
 }
 
 vec3 flatSquare(vec2 uv, float w, float h) { return vec3((uv.x - 0.5) * w, (uv.y - 0.5) * h, 0.0); }
@@ -96,18 +117,38 @@ vec3 cylinder(vec2 uv) {
   return 1.1 * gl3(vec3(cos(U), sin(U), (uv.y - 0.5) * 1.2));
 }
 
-vec3 S(vec2 uv) {
+vec3 S0(vec2 uv) {
   float t = u_t;
-  if (u_shape == 1) return 0.62 * torus(uv, t);
+  if (u_shape == 1) return torus(uv, t);
   if (u_shape == 0) return mix(sphereFlat(uv), sphere(uv), t);
-  if (u_shape == 2) return mix(flatSquare(uv, 3.2, 3.2), klein(uv), t);
+  if (u_shape == 2) return kleinStaged(uv, t);
   if (u_shape == 3) return mix(flatSquare(uv, 2.6, 2.6), crosscap(uv), t);
   if (u_shape == 4) return mix(flatSquare(uv, TAU * 1.1 * 0.8, 1.0), moebius(uv), t);
   if (u_shape == 5) return mix(flatSquare(uv, TAU * 1.1 * 0.8, 1.32), cylinder(uv), t);
   return vec3((2.0 * uv.x - 1.0) * sqrt(max(0.0, 1.0 - pow(2.0 * uv.y - 1.0, 2.0))), 2.0 * uv.y - 1.0, 0.0) * 1.2;
 }
 
+// Einpassen: Mittelpunkt und Ausdehnung aus Stichproben (für jeden Zeitpunkt gleich für alle Ecken),
+// damit die Fläche während des Verklebens mittig bleibt und nicht aus dem Bild wandert
+vec4 fitBox() {
+  vec3 lo = vec3(1e9), hi = vec3(-1e9);
+  for (int i = 0; i <= 4; i++) {
+    for (int j = 0; j <= 4; j++) {
+      vec3 q = S0(vec2(float(i), float(j)) * 0.25);
+      lo = min(lo, q);
+      hi = max(hi, q);
+    }
+  }
+  vec3 c = 0.5 * (lo + hi);
+  float ext = 0.5 * max(max(hi.x - lo.x, hi.y - lo.y), hi.z - lo.z);
+  return vec4(c, min(1.0, 1.7 / max(ext, 1e-3)));
+}
+
+vec4 FIT;
+vec3 S(vec2 uv) { return (S0(uv) - FIT.xyz) * FIT.w; }
+
 void main() {
+  FIT = fitBox();
   vec3 p = S(a_uv);
   const float h = 1e-3;
   v_normal = cross(S(a_uv + vec2(h, 0.0)) - S(a_uv - vec2(h, 0.0)), S(a_uv + vec2(0.0, h)) - S(a_uv - vec2(0.0, h)));
@@ -120,6 +161,7 @@ void main() {
     2.0 * FOCAL * dot(rel, u_camUp),
     (zc * (FAR + NEAR) - 2.0 * FAR * NEAR) / (FAR - NEAR),
     zc);
+  clip.x += u_shift * clip.w;
   clip.xy = clip.xy * u_tileClip.xy + u_tileClip.zw * clip.w;
   gl_Position = clip;
 }
