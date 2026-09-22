@@ -4,12 +4,13 @@ import { MAX_SCALE, MIN_SCALE, ViewController } from './core/view';
 import type { ViewState } from './core/view';
 import { domainModule } from './modules/domain/module';
 import { gridModule } from './modules/grid/module';
+import { hyperbolicModule } from './modules/hyperbolic/module';
 import { shapesModule } from './modules/shapes/module';
 import type { ModuleHost, VizModule } from './modules/types';
 import { createControls } from './ui/controls';
 import { ErrorOverlay } from './ui/errorOverlay';
 
-const modules: readonly VizModule[] = [domainModule, shapesModule, gridModule];
+const modules: readonly VizModule[] = [domainModule, shapesModule, hyperbolicModule, gridModule];
 
 const canvas = document.querySelector<HTMLCanvasElement>('#view')!;
 const overlay = new ErrorOverlay(document.querySelector<HTMLElement>('#error-overlay')!);
@@ -52,6 +53,7 @@ const host: ModuleHost = {
   get view() {
     return view.state;
   },
+  setView: (v) => (view.state = v),
   createProgram: (vs, fs) => renderer.compileProgram(vs, fs),
 };
 

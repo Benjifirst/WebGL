@@ -137,6 +137,13 @@ export class ViewController {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     const [px, py] = this.local(e);
     // Das Modul darf nur Einzelpointer übernehmen; ein zweiter Finger ist immer Pinch.
+    // Hält das Modul bereits einen Pointer, gibt es ihn frei, damit beide pinchen können.
+    for (const q of this.pointers.values()) {
+      if (q.owned) {
+        q.owned = false;
+        this.emit('up', e);
+      }
+    }
     const owned = this.pointers.size === 0 && this.emit('down', e);
     this.pointers.set(e.pointerId, { x: px, y: py, owned });
     this.el.setPointerCapture(e.pointerId);

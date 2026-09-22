@@ -18,6 +18,8 @@ export interface ModuleHost {
   /** fragSource geändert → neu kompilieren (bei Fehler bleibt das alte Programm aktiv) */
   recompile(): void;
   readonly view: ViewState;
+  /** Ansicht setzen (z. B. beim Wechsel des Modells) */
+  setView(v: ViewState): void;
   /** Eigenes Programm kompilieren (Fehler → Overlay), null bei Fehler */
   createProgram(vertexSource: string, fragmentSource: string): ProgramInfo | null;
 }

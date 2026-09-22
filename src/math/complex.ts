@@ -1,7 +1,7 @@
 // Komplexe Arithmetik in TS (double) – Spiegel der GLSL-Funktionen in domain.frag.
 // Dient als Referenz für Tests und für die f(z)-Anzeige unter dem Cursor.
-import type { Node } from '../../math/parser';
-import { integerExponent } from '../../math/real';
+import type { Node } from './parser';
+import { integerExponent } from './real';
 
 export type C = readonly [number, number];
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { codegen, glslFloat } from './codegen';
-import { evaluate } from './complex';
-import type { C } from './complex';
+import { evaluate } from '../../math/complex';
+import type { C } from '../../math/complex';
 import { parse } from '../../math/parser';
 
 const g = (s: string) => codegen(parse(s));

@@ -1,8 +1,8 @@
 import type { ModuleHost, VizModule } from '../types';
 import { chips, h, toggle } from '../../ui/widgets';
 import { codegen } from './codegen';
-import { evaluate } from './complex';
-import type { C } from './complex';
+import { evaluate } from '../../math/complex';
+import type { C } from '../../math/complex';
 import { parse } from '../../math/parser';
 import { formulaField } from '../../ui/formula';
 import type { Node } from '../../math/parser';
