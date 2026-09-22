@@ -453,3 +453,31 @@ input[type='range'] {
   color: var(--muted);
   font-size: 12px;
 }
+
+.coords {
+  margin: 0;
+  max-height: 6.5em;
+  overflow: auto;
+  padding: 6px 8px;
+  background: var(--field);
+  border-radius: 6px;
+  font: 11px/1.4 var(--mono);
+  color: var(--muted);
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: all;
+}
+
+/* Modul-Tabs: bei vielen Modulen umbrechen statt überlaufen */
+#panel {
+  overflow-x: hidden;
+}
+
+#panel header .segmented {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+#panel header .segmented button {
+  padding: 4px 6px;
+}

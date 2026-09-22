@@ -5,12 +5,13 @@ import type { ViewState } from './core/view';
 import { domainModule } from './modules/domain/module';
 import { gridModule } from './modules/grid/module';
 import { hyperbolicModule } from './modules/hyperbolic/module';
+import { mandelbrotModule } from './modules/mandelbrot/module';
 import { shapesModule } from './modules/shapes/module';
 import type { ModuleHost, VizModule } from './modules/types';
 import { createControls } from './ui/controls';
 import { ErrorOverlay } from './ui/errorOverlay';
 
-const modules: readonly VizModule[] = [domainModule, shapesModule, hyperbolicModule, gridModule];
+const modules: readonly VizModule[] = [domainModule, shapesModule, hyperbolicModule, mandelbrotModule, gridModule];
 
 const canvas = document.querySelector<HTMLCanvasElement>('#view')!;
 const overlay = new ErrorOverlay(document.querySelector<HTMLElement>('#error-overlay')!);
@@ -37,6 +38,9 @@ const renderer = new Renderer(canvas, {
       u_pixelRatio: pr,
       ...active.uniforms(frameInfo()),
     };
+  },
+  beforeDraw(gl) {
+    active.prepare?.(gl);
   },
   afterDraw(gl) {
     active.draw?.(gl, frameInfo());

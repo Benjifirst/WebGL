@@ -36,6 +36,8 @@ export interface VizModule {
   ui(container: HTMLElement, host: ModuleHost): void | (() => void);
   /** true bei 'down' = Pointer übernehmen (kein Pan) */
   onPointer?(e: ViewPointerEvent, host: ModuleHost): boolean;
+  /** Vor dem Zeichnen: Texturen hochladen/binden */
+  prepare?(gl: WebGL2RenderingContext): void;
   /** Zusätzliche Geometrie nach dem Fullscreen-Pass zeichnen (Tiefenpuffer verfügbar) */
   draw?(gl: WebGL2RenderingContext, frame: FrameInfo): void;
   /** Statuszeile für die Cursorposition (Weltkoordinaten) */

@@ -24,6 +24,8 @@ export interface RendererHooks {
   onCompile(error: ShaderCompileError | null, source: string): void;
   /** Größe der Zeichenfläche hat sich geändert. */
   onResize?(): void;
+  /** Vor dem Fullscreen-Pass, z. B. um Texturen zu binden. */
+  beforeDraw?(gl: WebGL2RenderingContext): void;
   /** Nach dem Fullscreen-Pass, z. B. für Geometrie mit Tiefentest. */
   afterDraw?(gl: WebGL2RenderingContext): void;
 }
@@ -103,6 +105,7 @@ export class Renderer {
     const p = this.program;
     if (!p || gl.isContextLost()) return;
     gl.viewport(0, 0, this.width, this.height);
+    this.hooks.beforeDraw?.(gl);
     gl.useProgram(p.program);
     const values = this.hooks.uniforms();
     values.u_resolution = [this.width, this.height];
