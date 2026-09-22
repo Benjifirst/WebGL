@@ -15,7 +15,7 @@ describe('Kantenwörter', () => {
     } catch (e) {
       expect((e as WordError).pos).toBe(4);
     }
-    expect(() => c('a a a')).toThrow(/3×/);
+    expect(() => parseWord('a , b')).not.toThrow();
   });
 });
 
@@ -84,5 +84,37 @@ describe('Zusammenhängende Summe', () => {
     const s = classify(f);
     expect(s.orientable).toBe(false);
     expect(s.genus).toBe(5); // Σ₂ # ℝP² ≅ N₅
+  });
+});
+
+describe('Allgemeine 2-Komplexe', () => {
+  it('a a a: Pseudo-Projektivraum, H₁ = ℤ/3, π₁ = ⟨a | aaa⟩', () => {
+    const s = c('a a a');
+    expect(s.surface).toBe(false);
+    expect(s.reasons[0]).toMatch(/3 Polygonseiten/);
+    expect(s.homology).toBe('ℤ/3');
+    expect(s.pi1).toBe('⟨ a | aaa ⟩');
+  });
+  it('Eingeschnürter Torus: Meridian a mit einer Scheibe zugeklebt ≃ S² ∨ S¹', () => {
+    const s = c('a b a⁻¹ b⁻¹, a');
+    expect(s.surface).toBe(false);
+    expect(s.groups.map((g) => g.betti)).toEqual([1, 1, 1]);
+    expect(s.pi1).toBe('⟨ a, b | aba⁻¹b⁻¹, a ⟩'); // ≅ ℤ (erzeugt von b)
+  });
+  it('Ein einzelnes Polygon mit paarweise verklebten Kanten ist immer eine Fläche', () => {
+    for (const w of ['a a⁻¹ b b⁻¹', 'a b c a⁻¹ b⁻¹ c⁻¹', 'a b a c b c', 'a a b c b c']) expect(c(w).surface).toBe(true);
+  });
+  it('Homologie über den Kettenkomplex stimmt mit der Klassifikation überein', () => {
+    for (const w of ['a b A B', 'a b a B', 'a b a b', 'a b A B c d C D', 'c a d a']) {
+      const s = c(w);
+      expect(s.surface).toBe(true);
+      expect(s.groups[0]!.betti).toBe(1);
+    }
+    expect(c('a b a b').groups.map((g) => g.torsion.map(String))).toEqual([[], ['2'], []]);
+  });
+  it('nicht zusammenhängend: zwei Tori', () => {
+    const s = c('a b A B, c d C D');
+    expect(s.connected).toBe(false);
+    expect(s.groups.map((g) => g.betti)).toEqual([2, 4, 2]);
   });
 });

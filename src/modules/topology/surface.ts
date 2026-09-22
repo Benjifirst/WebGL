@@ -5,6 +5,11 @@
 //   nachgestelltes ' oder ⁻¹ oder ^-1. Polygone werden durch Komma oder Semikolon getrennt.
 //   Kommt eine Kante zweimal vor, werden die beiden Vorkommen verklebt; einmal → Randkante.
 //
+// Allgemein ist das Ergebnis ein 2-dimensionaler CW-Komplex (Kanten dürfen beliebig oft vorkommen);
+// seine Homologie wird immer über den zellulären Kettenkomplex berechnet. Eine Fläche liegt genau
+// dann vor, wenn jede Kante höchstens zweimal vorkommt und der Link jeder Ecke ein Kreis (innen)
+// bzw. ein Weg (Rand) ist.
+//
 // Klassifikation (Satz über die Klassifikation kompakter Flächen):
 //   χ = V − E + F, orientierbar ⇔ Polygone lassen sich so orientieren, dass jede verklebte Kante
 //   in den beiden Vorkommen entgegengesetzt durchlaufen wird.
@@ -12,6 +17,8 @@
 //   nicht orientierbar: k = 2 − χ − r Kreuzhauben,    N_k mit r Randkomponenten
 
 import { ParseError } from '../../math/parser';
+import { complex, homology } from './chain';
+import type { ChainComplex, HomologyGroup } from './chain';
 
 export interface EdgeUse {
   label: string;
@@ -89,6 +96,12 @@ export interface SurfaceInfo {
   orientable: boolean;
   boundary: number;
   connected: boolean;
+  /** Ist der Komplex eine (berandete) Fläche? Sonst Gründe in `reasons` */
+  surface: boolean;
+  reasons: string[];
+  /** zellulärer Kettenkomplex (Eckklassen, Kanten, Polygone) und seine Homologie H₀, H₁, H₂ */
+  complex: ChainComplex;
+  groups: HomologyGroup[];
   /** orientierbar: Geschlecht; nicht orientierbar: Anzahl Kreuzhauben */
   genus: number;
   name: string;
@@ -116,8 +129,9 @@ export function classify(faces: Face[]): SurfaceInfo {
       uses.set(e.label, list);
     }),
   );
+  const reasons: string[] = [];
   for (const [label, list] of uses) {
-    if (list.length > 2) throw new WordError(`Kante ${label} kommt ${list.length}× vor (höchstens 2)`, 0);
+    if (list.length > 2) reasons.push(`Kante ${label} gehört zu ${list.length} Polygonseiten`);
   }
 
   // Ecken: Ecke i von Polygon f liegt vor Kante i. Kante i läuft (in Umlaufrichtung) von Ecke i
@@ -134,8 +148,8 @@ export function classify(faces: Face[]): SurfaceInfo {
   const uf = new UnionFind(n);
   const faceUF = new UnionFind(faces.length);
   for (const list of uses.values()) {
-    if (list.length === 2) {
-      const [a, b] = list as [(typeof list)[0], (typeof list)[0]];
+    const a = list[0]!;
+    for (const b of list.slice(1)) {
       uf.union(tail(a), tail(b));
       uf.union(head(a), head(b));
       faceUF.union(a.f, b.f);
@@ -154,6 +168,60 @@ export function classify(faces: Face[]): SurfaceInfo {
   const F = faces.length;
   const chi = V - E + F;
   const connected = new Set(faces.map((_, f) => faceUF.find(f))).size === 1;
+
+  // Link jeder Ecke: Knoten = Kantenenden an der Ecke, verbunden über die Polygonecken.
+  // Fläche ⇔ je Eckklasse genau ein Link, und der ist ein Kreis oder ein Weg.
+  if (!reasons.length) {
+    const endId = (label: string, atHead: boolean) => `${label}:${atHead ? 'h' : 't'}`;
+    const links = new Map<number, Map<string, Set<string>>>();
+    const addLink = (v: number, x: string, y: string) => {
+      const g = links.get(v) ?? new Map<string, Set<string>>();
+      for (const [p, q] of [[x, y], [y, x]] as const) {
+        if (!g.has(p)) g.set(p, new Set());
+        g.get(p)!.add(q);
+      }
+      links.set(v, g);
+    };
+    faces.forEach((face, f) =>
+      face.forEach((e, i) => {
+        // Ecke i liegt zwischen Kante i−1 (endet hier) und Kante i (beginnt hier)
+        const prev = face[(i - 1 + face.length) % face.length]!;
+        const v = classOf.get(uf.find(corner(f, i)))!;
+        addLink(v, endId(prev.label, prev.sign > 0), endId(e.label, e.sign < 0));
+      }),
+    );
+    for (const [v, g] of links) {
+      // Komponenten zählen (Grad ≤ 2 folgt aus höchstens zwei Kantenvorkommen)
+      const seen = new Set<string>();
+      let components = 0;
+      for (const start of g.keys()) {
+        if (seen.has(start)) continue;
+        components++;
+        const stack = [start];
+        while (stack.length) {
+          const x = stack.pop()!;
+          if (seen.has(x)) continue;
+          seen.add(x);
+          for (const y of g.get(x)!) stack.push(y);
+        }
+      }
+      if (components > 1) reasons.push(`Ecke ${v + 1} ist ein Quetschpunkt (Link aus ${components} Teilen)`);
+    }
+  }
+  const surface = reasons.length === 0;
+
+  // Zellulärer Kettenkomplex: ∂(Kante) = Endecke − Anfangsecke, ∂(Polygon) = Σ ±Kante
+  const labels = [...uses.keys()];
+  const d1 = Array.from({ length: V }, () => Array<number>(labels.length).fill(0));
+  labels.forEach((l, j) => {
+    const u = uses.get(l)![0]!;
+    const row = (corner: number) => d1[classOf.get(uf.find(corner))!]!;
+    row(head(u))[j]! += 1;
+    row(tail(u))[j]! -= 1;
+  });
+  const d2 = labels.map((l) => faces.map((face) => face.reduce((acc, e) => acc + (e.label === l ? e.sign : 0), 0)));
+  const cx = complex([V, labels.length, F], { 1: d1, 2: d2 });
+  const groups = homology(cx);
 
   // Orientierbarkeit: Orientierung ε_f ∈ {±1} je Polygon mit ε_f·s = −ε_g·t für jede verklebte Kante
   const eps: number[] = faces.map(() => 0);
@@ -193,13 +261,20 @@ export function classify(faces: Face[]): SurfaceInfo {
   const boundary = new Set([...boundaryVertices].map((v) => boundaryUF.find(v))).size;
 
   const genus = orientable ? (2 - chi - boundary) / 2 : 2 - chi - boundary;
-  const { name, symbol, normalForm, homology } = describe(orientable, genus, boundary, chi, connected);
-  const pi1 = presentation(faces, uses, uf, classOf, V);
+  const { name, symbol, normalForm } = surface
+    ? describe(orientable, genus, boundary, chi, connected)
+    : { name: '2-dimensionaler CW-Komplex (keine Fläche)', symbol: '—', normalForm: '—' };
+  const pi1 = connected ? presentation(faces, uses, uf, classOf, V) : '— (nicht zusammenhängend)';
+  const fmt = (g: HomologyGroup) => {
+    const parts = [...(g.betti ? [g.betti === 1 ? 'ℤ' : `ℤ${sup(g.betti)}`] : []), ...g.torsion.map((t) => `ℤ/${t}`)];
+    return parts.join(' ⊕ ') || '0';
+  };
 
   return {
-    faces, V, E, F, chi, orientable, boundary, connected, genus, name, symbol, normalForm, homology, pi1,
+    faces, V, E, F, chi, orientable: surface && orientable, boundary, connected, surface, reasons, complex: cx, groups,
+    genus, name, symbol, normalForm, homology: fmt(groups[1] ?? { betti: 0, torsion: [] }), pi1,
     vertexClass,
-    standard: connected ? standardShape(orientable, genus, boundary) : null,
+    standard: connected && surface ? standardShape(orientable, genus, boundary) : null,
   };
 }
 
@@ -221,7 +296,6 @@ function describe(orientable: boolean, g: number, r: number, chi: number, connec
       name: 'Nicht zusammenhängend – jede Komponente ist eine eigene Fläche',
       symbol: '—',
       normalForm: '—',
-      homology: '—',
     };
   }
   const rand = r ? ` mit ${r} Randkomponente${r > 1 ? 'n' : ''}` : '';
@@ -247,14 +321,8 @@ function describe(orientable: boolean, g: number, r: number, chi: number, connec
     normalForm = Array.from({ length: g }, (_, i) => `c${i + 1} c${i + 1}`).join(' ');
   }
   if (r) normalForm += ` (+ ${r} Randkreis${r > 1 ? 'e' : ''})`;
-  // Erste Homologie: geschlossen orientierbar ℤ^{2g}; geschlossen nicht orientierbar ℤ^{k−1} ⊕ ℤ/2;
-  // mit Rand homotopieäquivalent zu einem Bukett von 1 − χ Kreisen → ℤ^{1−χ}
-  const Z = (k: number) => (k === 0 ? '0' : k === 1 ? 'ℤ' : `ℤ${sup(k)}`);
-  let homology: string;
-  if (r) homology = Z(1 - chi);
-  else if (orientable) homology = Z(2 * g);
-  else homology = g === 1 ? 'ℤ/2' : `${Z(g - 1)} ⊕ ℤ/2`;
-  return { name, symbol, normalForm, homology };
+  void chi;
+  return { name, symbol, normalForm };
 }
 
 /**

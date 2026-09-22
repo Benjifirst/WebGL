@@ -493,8 +493,9 @@ input[type='range'] {
 }
 
 #panel header .segmented button {
-  padding: 4px 5px;
-  font-size: 12px;
+  padding: 4px 4px;
+  font-size: 11.5px;
+  letter-spacing: -0.01em;
 }
 
 /* ---- Export ---- */
@@ -578,4 +579,72 @@ progress::-moz-progress-bar {
   margin: 0;
   font-family: var(--mono);
   word-break: break-word;
+}
+
+.homology table {
+  width: 100%;
+  border-collapse: collapse;
+  font: 12px var(--mono);
+  margin-bottom: 6px;
+}
+
+.homology th,
+.homology td {
+  padding: 3px 6px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.homology th {
+  color: var(--muted);
+  font-weight: normal;
+}
+
+.homology {
+  overflow-x: auto;
+}
+
+/* ---- Graphen ---- */
+
+.plot-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.plot-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.plot-row .formula-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.swatch {
+  width: 16px;
+  height: 16px;
+  margin-top: 10px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--c);
+  background: var(--c);
+  padding: 0;
+}
+
+.swatch[aria-pressed='false'] {
+  background: transparent;
+}
+
+.param-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.param-row .slider {
+  flex: 1;
 }

@@ -119,3 +119,68 @@ export function drawDiagram(faces: Face[], vertexClass: number[][], boundaryLabe
   });
   return svg;
 }
+
+/**
+ * 1-Gerüst eines Simplizialkomplexes als Graph (Kräfte-Layout nach Fruchterman–Reingold),
+ * Dreiecke schwach gefüllt. Nur zur Anschauung – die Einbettung ist nicht geometrisch treu.
+ */
+export function drawGraph(vertices: string[], edges: [string, string][], triangles: string[][]): SVGSVGElement {
+  const W = 300, H = 220;
+  const n = vertices.length;
+  const idx = new Map(vertices.map((v, i) => [v, i]));
+  const pos = vertices.map((_, i) => [W / 2 + 80 * Math.cos((2 * Math.PI * i) / n), H / 2 + 80 * Math.sin((2 * Math.PI * i) / n)]);
+  const k = Math.sqrt((W * H) / Math.max(n, 1)) * 0.55;
+  for (let it = 0; it < 300; it++) {
+    const temp = 12 * (1 - it / 300) + 0.5;
+    const disp = pos.map(() => [0, 0]);
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const dx = pos[i]![0]! - pos[j]![0]!, dy = pos[i]![1]! - pos[j]![1]!;
+        const d = Math.max(Math.hypot(dx, dy), 0.01);
+        const f = (k * k) / d;
+        disp[i]![0]! += (dx / d) * f; disp[i]![1]! += (dy / d) * f;
+        disp[j]![0]! -= (dx / d) * f; disp[j]![1]! -= (dy / d) * f;
+      }
+    }
+    for (const [a, b] of edges) {
+      const i = idx.get(a)!, j = idx.get(b)!;
+      const dx = pos[i]![0]! - pos[j]![0]!, dy = pos[i]![1]! - pos[j]![1]!;
+      const d = Math.max(Math.hypot(dx, dy), 0.01);
+      const f = (d * d) / k;
+      disp[i]![0]! -= (dx / d) * f; disp[i]![1]! -= (dy / d) * f;
+      disp[j]![0]! += (dx / d) * f; disp[j]![1]! += (dy / d) * f;
+    }
+    pos.forEach((p, i) => {
+      const [dx, dy] = disp[i]!;
+      const d = Math.max(Math.hypot(dx!, dy!), 0.01);
+      p[0] = Math.min(W - 14, Math.max(14, p[0]! + (dx! / d) * Math.min(d, temp)));
+      p[1] = Math.min(H - 14, Math.max(14, p[1]! + (dy! / d) * Math.min(d, temp)));
+    });
+  }
+  // Layout auf die Zeichenfläche strecken (dichte Graphen wie K₇ ziehen sich sonst eng zusammen)
+  const xs = pos.map((p) => p[0]!), ys = pos.map((p) => p[1]!);
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const sc = Math.min((W - 30) / Math.max(x1 - x0, 1), (H - 30) / Math.max(y1 - y0, 1));
+  for (const p of pos) {
+    p[0] = W / 2 + (p[0]! - (x0 + x1) / 2) * sc;
+    p[1] = H / 2 + (p[1]! - (y0 + y1) / 2) * sc;
+  }
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%', class: 'diagram' });
+  for (const t of triangles) {
+    const pts = t.map((v) => pos[idx.get(v)!]!.join(',')).join(' ');
+    svg.append(el('polygon', { points: pts, fill: 'rgba(128, 168, 236, 0.07)', stroke: 'none' }));
+  }
+  for (const [a, b] of edges) {
+    const [x1, y1] = pos[idx.get(a)!]!;
+    const [x2, y2] = pos[idx.get(b)!]!;
+    svg.append(el('line', { x1: x1!, y1: y1!, x2: x2!, y2: y2!, stroke: 'rgba(200, 206, 218, 0.55)', 'stroke-width': 1.2 }));
+  }
+  vertices.forEach((v, i) => {
+    const [x, y] = pos[i]!;
+    svg.append(el('circle', { cx: x!, cy: y!, r: 7, fill: '#1b1d22', stroke: '#9fb2d4', 'stroke-width': 1.2 }));
+    const t = el('text', { x: x!, y: y! + 0.5, fill: '#d3d7df', 'font-size': 9, 'text-anchor': 'middle', 'dominant-baseline': 'middle' });
+    t.textContent = v;
+    svg.append(t);
+  });
+  return svg;
+}

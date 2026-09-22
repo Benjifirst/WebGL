@@ -40,7 +40,7 @@ function fmtC([re, im]: C): string {
 
 export const domainModule: VizModule = {
   id: 'domain',
-  name: 'Funktionen',
+  name: 'Komplex',
   initialView: { cx: 0, cy: 0, scale: 0.008 },
 
   get fragSource() {

@@ -10,11 +10,12 @@ Flächen); alle Module teilen sich eine gemeinsame Render-Infrastruktur.
 
 | Modul | Inhalt |
 | --- | --- |
-| **Funktionen** | Domain Coloring komplexer Funktionen f(z): Farbton = arg f(z), Helligkeitsstufen = \|f(z)\| verdoppelt sich, optional Phasenlinien und z-Gitter. Freie Formeleingabe mit Fehleranzeige. |
-| **3D** | *Formen*: Raymarching über Distanzfelder (Torus, Doppeltorus, Torusknoten (p,q), Hopf-Ringe, Gyroid, Mandelbulb, Menger-Schwamm). *Implizit*: beliebige Flächen F(x,y,z) = 0. *Parametrisch*: Flächen (x,y,z)(u,v) wie Möbiusband oder Kleinsche Flasche – Rückseiten warm gefärbt, das Möbiusband zeigt so seine Einseitigkeit. |
-| **Hyperbolisch** | Parkettierungen {p,q} der hyperbolischen Ebene in Poincaré-Scheibe, Halbebene oder Klein-Modell; sieben uniforme Varianten per Wythoff-Konstruktion; Ziehen verschiebt hyperbolisch, „Bewegen“ gleitet entlang einer Geodäte. |
+| **Graphen** | Reelle Funktionen: `y = f(x)`, implizite Kurven `F(x,y) = G(x,y)`, Ungleichungen als Bereiche (`<`, `>`, `≤`, `≥`), parametrisch `(x(t), y(t))`, polar `r = f(t)`. Weitere Buchstaben werden automatisch zu Parametern mit Regler (auch animierbar). Nullstellen, Extrema und Schnittpunkte werden markiert, Funktionswerte unter dem Cursor angezeigt. |
+| **Komplex** | Domain Coloring komplexer Funktionen f(z): Farbton = arg f(z), Helligkeitsstufen = \|f(z)\| verdoppelt sich, optional Phasenlinien und z-Gitter. |
+| **3D** | *Formen*: Raymarching über Distanzfelder (Torus, Doppeltorus, Torusknoten (p,q), Hopf-Ringe, Gyroid, Mandelbulb, Menger-Schwamm). *Implizit*: beliebige Flächen F(x,y,z) = 0. *Parametrisch*: Flächen (x,y,z)(u,v) wie Möbiusband oder Kleinsche Flasche – Rückseiten warm gefärbt. |
+| **Hyperbolisch** | Parkettierungen {p,q} in Poincaré-Scheibe, Halbebene oder Klein-Modell; sieben uniforme Varianten per Wythoff-Konstruktion; Ziehen verschiebt hyperbolisch, „Bewegen“ gleitet entlang einer Geodäte. |
 | **Mandelbrot** | Deep Zoom bis ~10⁻²⁹⁰ per Störungsrechnung mit Referenzorbit in beliebiger Präzision; „Minibrot suchen“ findet per Newton-Verfahren Mini-Mandelbrots als Zoomziele. |
-| **Topologie** | Flächen als Quotienten von Polygonen: Kantenwort eingeben (`a b a⁻¹ b⁻¹`, mehrere Polygone mit Komma), Diagramm mit Kantenfarben und Eckklassen, Klassifikation (χ, Orientierbarkeit, Rand, Geschlecht bzw. Kreuzhauben, Normalform, H₁, π₁). Zusammenhängende Summe per Knopf (`# T²`, `# ℝP²`); Verklebe-Animation des Standardpolygons für Sphäre, Torus, Kleinsche Flasche, ℝP², Möbiusband, Zylinder; Geschlecht ≥ 2 als Torus-Kette. |
+| **Topologie** | *Polygone*: 2-dimensionale CW-Komplexe aus Kantenwörtern (`a b a⁻¹ b⁻¹`, mehrere Polygone, beliebige Vielfachheiten) mit Diagramm, Flächenerkennung über Ecken-Links, Klassifikation, π₁ und Verklebe-Animation. *Räume*: CW-Räume beliebiger Dimension per Ausdruck – Sⁿ, Dⁿ, Tⁿ, ℝPⁿ, ℂPⁿ, L(p,q), M(n,k), F(g), N(k) mit ∨, #, ×, Σ, ⊔, Zellen anheften (`∪ e²(2)`) und Gerüst-Quotienten (`/ sk(1)`); Keilprodukte als 3D-Blumenstrauß. *Simplizial*: Facettenlisten (z. B. 7-Ecken-Torus, 6-Ecken-ℝP²). Überall exakte Homologie Hₖ über ℤ (Smith-Normalform), Kohomologie, Betti-Zahlen, χ, Poincaré-Polynom. |
 
 ## Bedienung
 
@@ -41,7 +42,7 @@ src/
                Render-on-Demand, progressive Auflösung, gekachelter Export), view.ts (Pan/Zoom/Pinch),
                prelude.glsl (gemeinsame Shader-Präambel), tiles.ts
   math/        parser.ts (Tokenizer → Recursive Descent → AST), real.ts / complex.ts (Codegen + Referenz)
-  modules/     domain, shapes, hyperbolic, mandelbrot, topology, grid (Testmodul, nur per #m=grid)
+  modules/     plot, domain, shapes, hyperbolic, mandelbrot, topology, grid (Testmodul, nur per #m=grid)
   ui/          Panel, Formelfelder, Widgets, URL-Zustand, Achsen (Beschriftungsebene)
 ```
 
@@ -61,9 +62,13 @@ src/
 - **Hyperbolisch**: Faltung jedes Pixels ins Fundamentaldreieck (π/p, π/q, π/2) mit dem zum
   Einheitskreis orthogonalen Spiegelkreis (d² = r² + 1); Disk-Automorphismen als SU(1,1)-Matrizen,
   nach jedem Schritt per Symmetrie der Parkettierung zurückgeführt (sonst wächst |α| exponentiell).
-- **Topologie**: Eckklassen per Union-Find über die Kantenidentifikationen, χ = V − E + F,
-  Orientierbarkeit als 2-Färbung der Polygone, Randkreise aus einfach vorkommenden Kanten; π₁ über
-  einen Spannbaum des 1-Skeletts (Erzeuger = Kanten außerhalb, Relationen = Polygonwörter).
+- **Topologie**: zelluläre Kettenkomplexe über ℤ, Homologie per Smith-Normalform (Torsion
+  inklusive), Kohomologie per universellem Koeffiziententheorem; Produkte mit Koszul-Vorzeichen
+  (Künneth samt Tor-Termen stimmt), reduzierte Suspension, Keil, zusammenhängende Summe.
+  Polygone: Eckklassen per Union-Find, Flächenerkennung über die Links der Ecken, Orientierbarkeit
+  als 2-Färbung, π₁ über einen Spannbaum des 1-Skeletts.
+- **Graphen**: explizite Kurven werden je Bildspalte abgetastet (Polstellen erkannt und
+  unterbrochen), implizite Kurven und Ungleichungen im Shader über |F|/|∇F|.
 - **Mandelbrot**: δ_{n+1} = 2Z_nδ_n + δ_n² + δc in float, unterhalb 2⁻¹⁰⁰ als Mantisse/Exponent;
   Rebasing nach Zhuoran, Glitch-Erkennung nach Pauldelbrot (zum Vergleich einblendbar);
   Innen-Erkennung über Konvergenz an aufeinanderfolgenden Rebasings. Minibrot-Suche: Ball-Perioden-

@@ -7,6 +7,7 @@ import { domainModule } from './modules/domain/module';
 import { gridModule } from './modules/grid/module';
 import { hyperbolicModule } from './modules/hyperbolic/module';
 import { mandelbrotModule } from './modules/mandelbrot/module';
+import { plotModule } from './modules/plot/module';
 import { shapesModule } from './modules/shapes/module';
 import { topologyModule } from './modules/topology/module';
 import type { FrameInfo, ModuleHost, VizModule } from './modules/types';
@@ -15,7 +16,7 @@ import { ErrorOverlay } from './ui/errorOverlay';
 import { decodeHash, encodeHash } from './ui/urlState';
 import type { DecodedHash } from './ui/urlState';
 
-const modules: readonly VizModule[] = [domainModule, shapesModule, hyperbolicModule, mandelbrotModule, topologyModule, gridModule];
+const modules: readonly VizModule[] = [plotModule, domainModule, shapesModule, hyperbolicModule, mandelbrotModule, topologyModule, gridModule];
 
 const canvas = document.querySelector<HTMLCanvasElement>('#view')!;
 const overlay = new ErrorOverlay(document.querySelector<HTMLElement>('#error-overlay')!);
