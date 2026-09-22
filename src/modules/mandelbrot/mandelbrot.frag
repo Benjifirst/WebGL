@@ -37,7 +37,7 @@ vec3 palette(float t) {
 }
 
 void main() {
-  vec2 pix = gl_FragCoord.xy - 0.5 * u_resolution;
+  vec2 pix = fragCoord() - 0.5 * u_resolution;
   vec2 dcm = u_offM + pix * u_scaleM;  // δc = dcm · 2^Edc
   int Edc = u_scaleE;
 

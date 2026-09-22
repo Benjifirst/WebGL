@@ -2,14 +2,19 @@
 <html lang="de">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0e0f12" />
+    <meta name="description" content="Domain Coloring, 3D-Flächen, hyperbolische Parkettierungen und Deep-Zoom-Mandelbrot in WebGL2." />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
     <title>Mathematische Visualisierung</title>
   </head>
   <body>
-    <canvas id="view"></canvas>
+    <canvas id="view" aria-label="Visualisierung"></canvas>
     <div id="error-overlay" hidden></div>
-    <aside id="panel"></aside>
-    <script type="module" src="/src/main.ts"></script>
+    <aside id="panel" aria-label="Steuerung"></aside>
+    <script type="module" src="./src/main.ts"></script>
   </body>
 </html>

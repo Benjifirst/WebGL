@@ -21,7 +21,7 @@ vec3 gradF(vec3 p, float h) {
 }
 
 void main() {
-  vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution) / u_resolution.y;
+  vec2 uv = (fragCoord() - 0.5 * u_resolution) / u_resolution.y;
   vec3 ro = u_camPos;
   vec3 rd = normalize(uv.x * u_camRight + uv.y * u_camUp + FOCAL * u_camFwd);
   float pixelAngle = 1.0 / (FOCAL * u_resolution.y);

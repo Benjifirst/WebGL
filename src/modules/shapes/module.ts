@@ -3,7 +3,10 @@ import { parse, ParseError, realOptions } from '../../math/parser';
 import type { Node } from '../../math/parser';
 import { codegenReal, evaluateReal, REAL_GLSL_HELPERS } from '../../math/real';
 import { formulaField } from '../../ui/formula';
+import { read } from '../../ui/urlState';
+import type { StateRecord } from '../../ui/urlState';
 import { chips, h, segmented, slider, toggle } from '../../ui/widgets';
+import { tileClipTransform } from '../../core/tiles';
 import { GridMesh } from './mesh';
 import sceneSrc from './scene.glsl?raw';
 import shapesSrc from './shapes.frag?raw';
@@ -129,7 +132,7 @@ const DIST_PER_SCALE = 400;
 
 const BACKGROUND_ONLY = `
 void main() {
-  vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution) / u_resolution.y;
+  vec2 uv = (fragCoord() - 0.5 * u_resolution) / u_resolution.y;
   fragColor = vec4(background(uv), 1.0);
 }
 `;
@@ -383,8 +386,62 @@ export const shapesModule: VizModule = {
       u_range: param.range,
       u_fit: param.fit,
       u_aspect: frame.width / frame.height,
+      u_tileClip: tileClipTransform(frame.width, frame.height, frame.tile),
       u_gridLines: param.gridLines ? 24 : 0,
     });
+  },
+
+  saveState() {
+    const base: StateRecord = { mode, col: colorMode, yaw: +yaw.toFixed(4), pitch: +pitch.toFixed(4) };
+    if (mode === 'sdf') {
+      const [a, b] = SHAPES[shapeIndex]!.params;
+      return { ...base, shape: shapeIndex, p1: a.value, ...(b ? { p2: b.value } : {}) };
+    }
+    if (mode === 'implicit') return { ...base, F: implicitExpr, b: bound };
+    const t = param.text;
+    return { ...base, px: t.x, py: t.y, pz: t.z, u0: t.u[0], u1: t.u[1], v0: t.v[0], v1: t.v[1], pl: param.gridLines };
+  },
+
+  loadState(p) {
+    mode = read.oneOf(p, 'mode', ['sdf', 'implicit', 'param'] as const, mode);
+    colorMode = read.oneOf(p, 'col', ['neutral', 'normal'] as const, colorMode);
+    yaw = read.num(p, 'yaw', yaw);
+    pitch = read.num(p, 'pitch', pitch, -1.5, 1.5);
+    if (mode === 'sdf') {
+      shapeIndex = Math.round(read.num(p, 'shape', shapeIndex, 0, SHAPES.length - 1));
+      const [a, b] = SHAPES[shapeIndex]!.params;
+      a.value = read.num(p, 'p1', a.value, a.min, a.max);
+      if (b) b.value = read.num(p, 'p2', b.value, b.min, b.max);
+    } else if (mode === 'implicit') {
+      const text = read.str(p, 'F', implicitExpr);
+      try {
+        implicitGlsl = implicitCode(parse(text, IMPLICIT_OPTS));
+        implicitExpr = text;
+      } catch {
+        // ungültig → bisherige Fläche behalten
+      }
+      bound = read.num(p, 'b', bound, 0.5, 6);
+    } else {
+      try {
+        const t = {
+          x: read.str(p, 'px', param.text.x),
+          y: read.str(p, 'py', param.text.y),
+          z: read.str(p, 'pz', param.text.z),
+          u: [read.str(p, 'u0', param.text.u[0]), read.str(p, 'u1', param.text.u[1])] as [string, string],
+          v: [read.str(p, 'v0', param.text.v[0]), read.str(p, 'v1', param.text.v[1])] as [string, string],
+        };
+        const ast = { x: parse(t.x, PARAM_OPTS), y: parse(t.y, PARAM_OPTS), z: parse(t.z, PARAM_OPTS) };
+        const range = [...t.u, ...t.v].map((s) => evaluateReal(parse(s, CONST_OPTS), {}));
+        if (!range.every(Number.isFinite)) throw new Error('Bereich');
+        param.text = { ...param.text, ...t };
+        param.ast = ast;
+        param.range = range as [number, number, number, number];
+      } catch {
+        // ungültige Fläche im Link → bisherige behalten
+      }
+      param.gridLines = read.bool(p, 'pl', param.gridLines);
+      param.dirty = true;
+    }
   },
 
   status() {

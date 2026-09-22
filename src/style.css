@@ -481,3 +481,43 @@ input[type='range'] {
 #panel header .segmented button {
   padding: 4px 6px;
 }
+
+/* ---- Export ---- */
+
+.export {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: var(--field);
+  border-radius: 8px;
+}
+
+.export[hidden],
+#panel.collapsed .export {
+  display: none;
+}
+
+.chip:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+progress {
+  width: 100%;
+  height: 4px;
+  appearance: none;
+  border: 0;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+progress::-webkit-progress-bar {
+  background: transparent;
+}
+
+progress::-webkit-progress-value,
+progress::-moz-progress-bar {
+  background: var(--accent);
+}

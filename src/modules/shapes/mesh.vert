@@ -11,7 +11,8 @@ uniform vec3 u_camPos;
 uniform vec3 u_camRight;
 uniform vec3 u_camUp;
 uniform vec3 u_camFwd;
-uniform float u_aspect;  // Breite / Höhe
+uniform float u_aspect;  // Breite / Höhe des Gesamtbildes
+uniform vec4  u_tileClip; // Kachel: x' = x·s + t·w  (s = xy, t = zw; ohne Kachel (1, 1, 0, 0))
 
 out vec3 v_pos;
 out vec3 v_normal;
@@ -50,9 +51,11 @@ void main() {
   // Perspektive passend zum Raymarching: Bildkoordinate = FOCAL · (x_c, y_c) / z_c
   vec3 rel = p - u_camPos;
   float zc = dot(rel, u_camFwd);
-  gl_Position = vec4(
+  vec4 clip = vec4(
     2.0 * FOCAL * dot(rel, u_camRight) / u_aspect,
     2.0 * FOCAL * dot(rel, u_camUp),
     (zc * (FAR + NEAR) - 2.0 * FAR * NEAR) / (FAR - NEAR),
     zc);
+  clip.xy = clip.xy * u_tileClip.xy + u_tileClip.zw * clip.w;
+  gl_Position = clip;
 }

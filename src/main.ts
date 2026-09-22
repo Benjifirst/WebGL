@@ -1,5 +1,6 @@
 import './style.css';
 import { Renderer } from './core/renderer';
+import type { RenderFrame } from './core/renderer';
 import { MAX_SCALE, MIN_SCALE, ViewController } from './core/view';
 import type { ViewState } from './core/view';
 import { domainModule } from './modules/domain/module';
@@ -7,9 +8,11 @@ import { gridModule } from './modules/grid/module';
 import { hyperbolicModule } from './modules/hyperbolic/module';
 import { mandelbrotModule } from './modules/mandelbrot/module';
 import { shapesModule } from './modules/shapes/module';
-import type { ModuleHost, VizModule } from './modules/types';
+import type { FrameInfo, ModuleHost, VizModule } from './modules/types';
 import { createControls } from './ui/controls';
 import { ErrorOverlay } from './ui/errorOverlay';
+import { decodeHash, encodeHash } from './ui/urlState';
+import type { DecodedHash } from './ui/urlState';
 
 const modules: readonly VizModule[] = [domainModule, shapesModule, hyperbolicModule, mandelbrotModule, gridModule];
 
@@ -21,29 +24,29 @@ let active: VizModule = modules[0]!;
 let disposeModuleUi: (() => void) | null = null;
 let hover: [number, number] | null = null;
 
-const frameInfo = () => ({
+const frameInfo = (f: RenderFrame): FrameInfo => ({
   view: view.state,
-  width: renderer.width,
-  height: renderer.height,
-  pixelRatio: renderer.pixelRatio,
+  width: f.width,
+  height: f.height,
+  pixelRatio: f.pixelRatio,
+  tile: f.tile,
 });
 
 const renderer = new Renderer(canvas, {
-  uniforms() {
+  uniforms(f) {
     const v = view.state;
-    const pr = renderer.pixelRatio;
     return {
       u_center: [v.cx, v.cy],
-      u_scale: v.scale / pr, // Welt pro Gerätepixel
-      u_pixelRatio: pr,
-      ...active.uniforms(frameInfo()),
+      u_scale: v.scale / f.pixelRatio, // Welt pro Bildpixel
+      u_pixelRatio: f.pixelRatio,
+      ...active.uniforms(frameInfo(f)),
     };
   },
   beforeDraw(gl) {
     active.prepare?.(gl);
   },
-  afterDraw(gl) {
-    active.draw?.(gl, frameInfo());
+  afterDraw(gl, f) {
+    active.draw?.(gl, frameInfo(f));
   },
   onCompile(error, source) {
     if (error) overlay.show(error, source);
@@ -51,9 +54,27 @@ const renderer = new Renderer(canvas, {
   },
 });
 
+// ---- Progressive Auflösung: während Interaktion reduziert, danach voll ----
+let interactionTimer = 0;
+function interact(): void {
+  renderer.interacting = true;
+  clearTimeout(interactionTimer);
+  interactionTimer = window.setTimeout(() => {
+    renderer.interacting = false;
+    renderer.requestRender();
+  }, 180);
+}
+
 const host: ModuleHost = {
-  requestRender: () => renderer.requestRender(),
-  recompile: () => renderer.setFragmentSource(active.fragSource),
+  requestRender() {
+    interact();
+    renderer.requestRender();
+    scheduleHash();
+  },
+  recompile() {
+    renderer.setFragmentSource(active.fragSource);
+    scheduleHash();
+  },
   get view() {
     return view.state;
   },
@@ -63,8 +84,10 @@ const host: ModuleHost = {
 
 const view = new ViewController(canvas, {
   onChange() {
+    interact();
     renderer.requestRender();
     updateStatus();
+    scheduleHash();
   },
   onPointer: (e) => active.onPointer?.(e, host) ?? false,
   onHover(x, y) {
@@ -75,8 +98,28 @@ const view = new ViewController(canvas, {
 
 const controls = createControls(panel, {
   modules,
-  onSelect: activate,
+  onSelect: (m) => activate(m),
   onResetView: () => (view.state = active.initialView),
+  shareLink: () => {
+    writeHash();
+    return location.href;
+  },
+  exportSize: (factor) => ({ width: renderer.width * factor, height: renderer.height * factor }),
+  async exportImage(factor, onProgress) {
+    const img = await renderer.renderImage(
+      renderer.width * factor,
+      renderer.height * factor,
+      renderer.pixelRatio * factor,
+      onProgress,
+    );
+    const blob = await new Promise<Blob | null>((r) => img.toBlob(r, 'image/png'));
+    if (!blob) throw new Error('PNG-Kodierung fehlgeschlagen');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `mathviz-${active.id}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+  },
 });
 
 /** Koordinate auf Pixelgenauigkeit (Nachkommastellen aus dem Maßstab). */
@@ -95,15 +138,53 @@ function updateStatus(): void {
   controls.setStatus(`${pos}${v.scale.toExponential(2)} / px`);
 }
 
-function activate(m: VizModule): void {
+// ---- Zustand im URL-Hash ----
+let hashTimer = 0;
+let lastHash = '';
+
+function writeHash(): void {
+  clearTimeout(hashTimer);
+  const v = view.state;
+  const state = active.saveState?.(v) ?? {};
+  const hash = encodeHash(active.id, v, state);
+  if (hash !== location.hash) history.replaceState(null, '', hash);
+  lastHash = hash;
+}
+
+function scheduleHash(): void {
+  clearTimeout(hashTimer);
+  hashTimer = window.setTimeout(writeHash, 400);
+}
+
+window.addEventListener('hashchange', () => {
+  if (location.hash === lastHash) return;
+  const d = decodeHash(location.hash);
+  const m = d && modules.find((x) => x.id === d.moduleId);
+  if (m) activate(m, d);
+});
+
+function activate(m: VizModule, state?: DecodedHash | null): void {
   disposeModuleUi?.();
   controls.moduleContainer.replaceChildren();
   active = m;
   controls.setActive(m.id);
+  // Zustand aus dem Link vor dem Aufbau der Controls übernehmen
+  const custom = state ? m.loadState?.(state.params, state.view) : undefined;
   disposeModuleUi = m.ui(controls.moduleContainer, host) ?? null;
   renderer.setFragmentSource(m.fragSource);
   view.scaleLimits = m.scaleRange ?? [MIN_SCALE, MAX_SCALE];
-  view.state = m.initialView;
+  view.state = custom ?? { ...m.initialView, ...(state?.view ?? {}) };
+  scheduleHash();
 }
 
-activate(active);
+// Start: Zustand aus dem Link oder erstes Modul
+const initial = decodeHash(location.hash);
+const initialModule = initial && modules.find((x) => x.id === initial.moduleId);
+activate(initialModule ?? active, initialModule ? initial : null);
+
+// PWA: Service Worker nur im Produktions-Build (im Dev-Server würde er HMR stören)
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('Service Worker:', e));
+  });
+}

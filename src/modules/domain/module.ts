@@ -5,6 +5,7 @@ import { evaluate } from '../../math/complex';
 import type { C } from '../../math/complex';
 import { parse } from '../../math/parser';
 import { formulaField } from '../../ui/formula';
+import { read } from '../../ui/urlState';
 import type { Node } from '../../math/parser';
 import template from './domain.frag?raw';
 
@@ -51,6 +52,23 @@ export const domainModule: VizModule = {
       u_phaseLines: phaseLines ? 12 : 0,
       u_gridLines: gridLines ? 1 : 0,
     };
+  },
+
+  saveState: () => ({ f: expr, c: contours, ph: phaseLines, g: gridLines }),
+
+  loadState(p) {
+    const text = read.str(p, 'f', expr);
+    try {
+      const next = parse(text);
+      glsl = codegen(next);
+      ast = next;
+      expr = text;
+    } catch {
+      // ungültige Formel im Link → aktuelle behalten
+    }
+    contours = read.bool(p, 'c', contours);
+    phaseLines = read.bool(p, 'ph', phaseLines);
+    gridLines = read.bool(p, 'g', gridLines);
   },
 
   status(x, y) {

@@ -1,5 +1,6 @@
 import type { ModuleHost, VizModule } from '../types';
 import type { ViewState } from '../../core/view';
+import { read } from '../../ui/urlState';
 import { chips, h, slider, toggle } from '../../ui/widgets';
 import { fromDecimal, fromDouble, toDecimal, toDouble, withBits } from './bigfixed';
 import { computeOrbit } from './orbit';
@@ -55,6 +56,7 @@ let showGlitch = false;
 let autoZoom = false;
 
 let coordsEl: HTMLElement | null = null;
+let referenceOnStart = false;
 let lastCoords = '';
 
 /** Benötigte Nachkommabits für einen Maßstab (Welt pro Pixel) plus Reserve */
@@ -271,6 +273,47 @@ export const mandelbrotModule: VizModule = {
     };
   },
 
+  saveState(view) {
+    // Absolute Bildmitte in voller Präzision; x/y = 0, da der Anker sie bereits enthält
+    const bits = Math.max(anchor.bits, needBits(view.scale));
+    const digits = Math.min(320, Math.max(6, Math.ceil(-Math.log10(view.scale)) + 4));
+    const x = withBits(anchor.x, anchor.bits, bits) + fromDouble(view.cx, bits);
+    const y = withBits(anchor.y, anchor.bits, bits) + fromDouble(view.cy, bits);
+    return {
+      x: 0,
+      y: 0,
+      re: toDecimal(x, bits, digits).replace(/\.?0+$/, ''),
+      im: toDecimal(y, bits, digits).replace(/\.?0+$/, ''),
+      per: +period.toFixed(2),
+      ph: phase,
+      it: autoIter ? 'auto' : manualIter,
+      rb: rebase,
+      gl: showGlitch,
+    };
+  },
+
+  loadState(p, v) {
+    period = read.num(p, 'per', period, 4, 1024);
+    phase = read.num(p, 'ph', phase, 0, 1);
+    const it = p.get('it');
+    autoIter = it === null || it === 'auto';
+    if (!autoIter) manualIter = Math.round(read.num(p, 'it', manualIter, 100, 100000));
+    rebase = read.bool(p, 'rb', rebase);
+    showGlitch = read.bool(p, 'gl', showGlitch);
+    const re = p.get('re');
+    const im = p.get('im');
+    if (!re || !im) return;
+    const scale = Math.max(MIN_SCALE, v.scale ?? overviewScale());
+    try {
+      const bits = Math.max(needBits(scale), Math.ceil(Math.max(re.length, im.length) * 3.33) + 32);
+      anchor = { x: fromDecimal(re, bits), y: fromDecimal(im, bits), bits };
+    } catch {
+      return;
+    }
+    referenceOnStart = true; // Referenz sofort für den Link-Ort berechnen (sobald host bekannt)
+    return { cx: 0, cy: 0, scale };
+  },
+
   prepare(gl) {
     uploadReference(gl);
   },
@@ -284,6 +327,10 @@ export const mandelbrotModule: VizModule = {
 
   ui(container, hst) {
     host = hst;
+    if (referenceOnStart) {
+      referenceOnStart = false;
+      queueMicrotask(() => startJob(hst));
+    }
     coordsEl = h('pre', { class: 'coords', title: 'Bildmitte (markieren zum Kopieren)' });
     lastCoords = '';
     updateCoords(hst.view);

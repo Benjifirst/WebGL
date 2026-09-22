@@ -1,6 +1,7 @@
 import type { ModuleHost, VizModule } from '../types';
 import type { ViewState } from '../../core/view';
 import type { C } from '../../math/complex';
+import { read } from '../../ui/urlState';
 import { chips, h, segmented, slider, toggle } from '../../ui/widgets';
 import {
   compose,
@@ -132,6 +133,34 @@ export const hyperbolicModule: VizModule = {
       u_mirrors: showMirrors ? 1 : 0,
       u_parity: showParity ? 1 : 0,
     };
+  },
+
+  saveState: () => ({
+    p,
+    q,
+    w: kind,
+    mo: model,
+    par: showParity,
+    mir: showMirrors,
+    // Automorphismus als α, β (SU(1,1)); bestimmt, welche Stelle der Parkettierung zu sehen ist
+    a: [...M.alpha, ...M.beta].map((v) => +v.toPrecision(12)).join(','),
+  }),
+
+  loadState(params) {
+    const pp = read.num(params, 'p', p, 3, 12);
+    const qq = read.num(params, 'q', q, 3, 12);
+    if (Number.isInteger(pp) && Number.isInteger(qq) && isHyperbolic(pp, qq)) {
+      p = pp;
+      q = qq;
+    }
+    kind = read.oneOf(params, 'w', KINDS.map((k) => k.value), kind);
+    model = read.oneOf(params, 'mo', ['poincare', 'halfplane', 'klein'] as const, model);
+    showParity = read.bool(params, 'par', showParity);
+    showMirrors = read.bool(params, 'mir', showMirrors);
+    const a = (params.get('a') ?? '').split(',').map(Number);
+    M = IDENTITY;
+    if (a.length === 4 && a.every(Number.isFinite)) M = compose({ alpha: [a[0]!, a[1]!], beta: [a[2]!, a[3]!] }, IDENTITY);
+    rebuildGeometry();
   },
 
   status(x, y) {

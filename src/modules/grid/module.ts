@@ -25,6 +25,7 @@ function smoothstep(a: number, b: number, x: number): number {
 export const gridModule: VizModule = {
   id: 'grid',
   name: 'Gitter',
+  hidden: true, // Platzhalter aus M0 zum Testen der Infrastruktur: #m=grid
   initialView: { cx: 0, cy: 0, scale: 0.01 },
 
   get fragSource() {
