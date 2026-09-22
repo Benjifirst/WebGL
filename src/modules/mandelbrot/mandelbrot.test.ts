@@ -55,7 +55,7 @@ function compare(C: [number, number], h: number, maxIter: number, rebase: boolea
   const e = Math.floor(Math.log2(h));
   const m = h / 2 ** e;
   const H = fromDouble(h, bits);
-  let exact = 0, close = 0, total = 0, unflaggedBad = 0, flagged = 0;
+  let exact = 0, close = 0, total = 0, unflaggedBad = 0, flagged = 0, wrongInterior = 0;
   for (let j = -grid; j <= grid; j++) {
     for (let i = -grid; i <= grid; i++) {
       const truth = computeOrbit(Cx + BigInt(i) * H, Cy + BigInt(j) * H, bits, maxIter);
@@ -63,11 +63,21 @@ function compare(C: [number, number], h: number, maxIter: number, rebase: boolea
       const p = iteratePixel(orbit.data, orbit.length, [i * m, j * m], e, { maxIter, rebase, bailout2: 4 });
       total++;
       if (p.glitch) flagged++;
+      if (p.interior) {
+        // Innen erkannt: richtig, wenn der Punkt tatsächlich nicht entkommt
+        if (truth.escaped) wrongInterior++;
+        else {
+          exact++;
+          close++;
+        }
+        continue;
+      }
       if (p.iterations === t) exact++;
       if (Math.abs(p.iterations - t) <= 2) close++;
       else if (!p.glitch) unflaggedBad++;
     }
   }
+  expect(wrongInterior).toBe(0); // nie einen entkommenden Punkt als innen markieren
   return { exact: exact / total, close: close / total, unflaggedBad, flagged, total };
 }
 
@@ -119,5 +129,29 @@ describe('Störungsrechnung (gegen exakte BigInt-Iteration)', () => {
     expect(without.flagged).toBeGreaterThan(0);
     expect(withR.flagged).toBe(0);
     expect(withR.close).toBeGreaterThan(0.99);
+  });
+
+  it('Innen-Erkennung: bricht im Minibrot früh ab, ohne Außenpunkte falsch zu markieren', () => {
+    // Periode-3-Minibrot bei −1.7549: Raster über Minibrot und Umgebung, Wahrheit per BigInt
+    const bits = 200;
+    const C: [number, number] = [-1.7548776662466927, 0];
+    const orbit = computeOrbit64(fromDouble(C[0], bits), 0n, bits, 5000);
+    const h = 1e-3;
+    const e = Math.floor(Math.log2(h));
+    const m = h / 2 ** e;
+    let interior = 0, wrongInterior = 0, savedIter = 0;
+    for (let j = -12; j <= 12; j++) {
+      for (let i = -12; i <= 12; i++) {
+        const p = iteratePixel(orbit.data, orbit.length, [i * m, j * m], e, { maxIter: 5000, rebase: true, bailout2: 4 });
+        if (!p.interior) continue;
+        interior++;
+        savedIter += 5000 - p.iterations;
+        const truth = computeOrbit(fromDouble(C[0] + i * h, bits), fromDouble(C[1] + j * h, bits), bits, 5000);
+        if (truth.escaped) wrongInterior++;
+      }
+    }
+    expect(interior).toBeGreaterThan(50); // ein guter Teil des Rasters liegt im Minibrot
+    expect(wrongInterior).toBe(0);
+    expect(savedIter / interior).toBeGreaterThan(4000); // im Mittel weit vor maxIter beendet
   });
 });

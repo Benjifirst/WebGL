@@ -2,7 +2,7 @@
 // - Navigation: Netz zuerst (neue Version), sonst zwischengespeicherte Seite
 // - /assets/* (Dateinamen mit Hash, unveränderlich): Cache zuerst
 // - übrige Dateien: Cache sofort liefern, im Hintergrund aktualisieren
-const CACHE = 'mathviz-v1';
+const CACHE = 'mathviz-__BUILD__'; // wird beim Build durch einen Inhalts-Hash ersetzt (vite.config.ts)
 const SHELL = ['./', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/favicon-32.png'];
 
 self.addEventListener('install', (e) => {

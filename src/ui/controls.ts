@@ -1,5 +1,5 @@
 import type { VizModule } from '../modules/types';
-import { h, segmented } from './widgets';
+import { h, segmented, toggle } from './widgets';
 
 export interface ControlsOptions {
   modules: readonly VizModule[];
@@ -9,7 +9,8 @@ export interface ControlsOptions {
   shareLink(): string;
   /** Pixelmaße des Exports für einen Vergrößerungsfaktor */
   exportSize(factor: number): { width: number; height: number };
-  exportImage(factor: number, onProgress: (fraction: number) => void): Promise<void>;
+  /** smooth: 2× überabgetastet rendern und herunterskalieren (Kantenglättung) */
+  exportImage(factor: number, smooth: boolean, onProgress: (fraction: number) => void): Promise<void>;
 }
 
 export interface Controls {
@@ -17,6 +18,8 @@ export interface Controls {
   moduleContainer: HTMLElement;
   setActive(id: string): void;
   setStatus(text: string): void;
+  toggleCollapsed(): void;
+  copyLink(): void;
 }
 
 const EXPORT_FACTORS = [1, 2, 4, 8] as const;
@@ -43,7 +46,7 @@ export function createControls(panel: HTMLElement, opts: ControlsOptions): Contr
 
   // Auf schmalen Bildschirmen startet das Panel eingeklappt, damit die Visualisierung dominiert
   if (window.innerWidth < 640) panel.classList.add('collapsed');
-  const collapse = iconButton('', 'Panel ein-/ausklappen', () => setCollapsed(!panel.classList.contains('collapsed')));
+  const collapse = iconButton('', 'Panel ein-/ausklappen (H)', () => setCollapsed(!panel.classList.contains('collapsed')));
   const setCollapsed = (c: boolean) => {
     panel.classList.toggle('collapsed', c);
     collapse.textContent = c ? '+' : '–';
@@ -55,7 +58,7 @@ export function createControls(panel: HTMLElement, opts: ControlsOptions): Contr
   const status = h('div', { class: 'status' });
 
   // ---- Link teilen ----
-  const share = iconButton('⧉', 'Link mit aktuellem Zustand kopieren', async () => {
+  const share = iconButton('⧉', 'Link mit aktuellem Zustand kopieren (L)', async () => {
     const url = opts.shareLink();
     try {
       await navigator.clipboard.writeText(url);
@@ -67,6 +70,8 @@ export function createControls(panel: HTMLElement, opts: ControlsOptions): Contr
 
   // ---- PNG-Export ----
   const exportBox = h('div', { class: 'export', hidden: true });
+  let smooth = true;
+  const factorOf = (f: number) => f * (smooth ? 2 : 1); // tatsächlich gerenderte Vergrößerung
   const progress = h('progress', { max: 1, value: 0, hidden: true });
   const exportButtons = EXPORT_FACTORS.map((f) => {
     const b = h('button', { type: 'button', class: 'chip' }, `${f}×`);
@@ -76,7 +81,7 @@ export function createControls(panel: HTMLElement, opts: ControlsOptions): Contr
       progress.value = 0;
       let error: unknown = null;
       try {
-        await opts.exportImage(f, (p) => (progress.value = p));
+        await opts.exportImage(f, smooth, (p) => (progress.value = p));
       } catch (e) {
         console.error(e);
         error = e;
@@ -90,21 +95,32 @@ export function createControls(panel: HTMLElement, opts: ControlsOptions): Contr
   const sizeInfo = h('span', { class: 'hint' });
   const refreshExport = () => {
     exportButtons.forEach((b, i) => {
-      const { width, height } = opts.exportSize(EXPORT_FACTORS[i]!);
-      const tooBig = width * height > MAX_EXPORT_PIXELS || Math.max(width, height) > MAX_EXPORT_EDGE;
+      const f = EXPORT_FACTORS[i]!;
+      const { width, height } = opts.exportSize(f);
+      const rendered = opts.exportSize(factorOf(f));
+      const tooBig =
+        rendered.width * rendered.height > MAX_EXPORT_PIXELS || Math.max(rendered.width, rendered.height) > MAX_EXPORT_EDGE;
       b.disabled = tooBig;
       b.title = `${width} × ${height} px${tooBig ? ' – zu groß' : ''}`;
     });
     const { width, height } = opts.exportSize(1);
     sizeInfo.textContent = `PNG, 1× = ${width} × ${height} px`;
   };
-  exportBox.append(h('div', { class: 'chips' }, ...exportButtons), sizeInfo, progress);
+  exportBox.append(
+    h('div', { class: 'chips' }, ...exportButtons),
+    toggle('Geglättet (2× überabgetastet)', smooth, (v) => {
+      smooth = v;
+      refreshExport();
+    }),
+    sizeInfo,
+    progress,
+  );
   const exportToggle = iconButton('⤓', 'Bild exportieren (PNG)', () => {
     exportBox.hidden = !exportBox.hidden;
     if (!exportBox.hidden) refreshExport();
   });
 
-  const reset = iconButton('⟲', 'Ansicht zurücksetzen', opts.onResetView);
+  const reset = iconButton('⟲', 'Ansicht zurücksetzen (R)', opts.onResetView);
 
   panel.replaceChildren(
     h('header', {}, tabs.el, collapse),
@@ -119,6 +135,8 @@ export function createControls(panel: HTMLElement, opts: ControlsOptions): Contr
     setStatus(text) {
       status.textContent = text;
     },
+    toggleCollapsed: () => setCollapsed(!panel.classList.contains('collapsed')),
+    copyLink: () => share.click(),
   };
 }
 

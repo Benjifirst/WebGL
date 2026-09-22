@@ -105,13 +105,23 @@ const controls = createControls(panel, {
     return location.href;
   },
   exportSize: (factor) => ({ width: renderer.width * factor, height: renderer.height * factor }),
-  async exportImage(factor, onProgress) {
-    const img = await renderer.renderImage(
-      renderer.width * factor,
-      renderer.height * factor,
-      renderer.pixelRatio * factor,
-      onProgress,
-    );
+  async exportImage(factor, smooth, onProgress) {
+    const W = renderer.width * factor;
+    const H = renderer.height * factor;
+    // Kantenglättung: doppelt so groß rendern, dann hochwertig herunterskalieren
+    const ss = smooth ? 2 : 1;
+    const big = await renderer.renderImage(W * ss, H * ss, renderer.pixelRatio * factor * ss, onProgress);
+    let img = big;
+    if (ss > 1) {
+      img = document.createElement('canvas');
+      img.width = W;
+      img.height = H;
+      const ctx = img.getContext('2d')!;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(big, 0, 0, W, H);
+      big.width = big.height = 0; // Speicher freigeben
+    }
     const blob = await new Promise<Blob | null>((r) => img.toBlob(r, 'image/png'));
     if (!blob) throw new Error('PNG-Kodierung fehlgeschlagen');
     const a = document.createElement('a');
@@ -120,6 +130,18 @@ const controls = createControls(panel, {
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
   },
+});
+
+// ---- Tastaturkürzel (nicht in Eingabefeldern) ----
+window.addEventListener('keydown', (e) => {
+  const t = e.target as HTMLElement | null;
+  if (e.ctrlKey || e.metaKey || e.altKey || t?.closest('input, textarea, select, [contenteditable]')) return;
+  const key = e.key.toLowerCase();
+  if (key === 'h') controls.toggleCollapsed();
+  else if (key === 'r') view.state = active.initialView;
+  else if (key === 'l') controls.copyLink();
+  else return;
+  e.preventDefault();
 });
 
 /** Koordinate auf Pixelgenauigkeit (Nachkommastellen aus dem Maßstab). */

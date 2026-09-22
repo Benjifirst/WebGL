@@ -2,6 +2,8 @@
 //   z_n = Z_n + δ_n,  δ_{n+1} = 2·Z_n·δ_n + δ_n² + δc   (Z_n: Referenzorbit als Textur)
 // Tiefe Zooms: δ = w·2^E (Mantisse/Exponent), bis δ im float-Bereich liegt.
 // Rebasing (Zhuoran): |z_n| < |δ_n| oder Referenz zu Ende → δ := z_n, n := 0.
+// Innen-Erkennung (wie perturb.ts): z an aufeinanderfolgenden Rebasings relativ < 1e-6 gleich und
+// der Abstand zweimal hintereinander geometrisch geschrumpft → anziehender Zyklus → innen.
 
 uniform highp sampler2D u_orbit;  // RG32F, Breite ORBIT_W: Z_n bei (n mod W, n div W)
 uniform int   u_refLen;           // gültige Einträge Z_0 … Z_{refLen−1}
@@ -17,6 +19,8 @@ uniform float u_phase;
 const int ORBIT_W = 2048;
 const int PLAIN_EXP = -100;       // ab 2^−100 unskaliert (float reicht bis ~2^−126)
 const float BAILOUT2 = 1e6;       // großer Fluchtradius für glatte Färbung
+const float INTERIOR_TOL = 1e-6;
+const float INTERIOR_RATE = 0.8;
 
 vec2 cmul(vec2 a, vec2 b) { return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
 vec2 orbit(int n) { return texelFetch(u_orbit, ivec2(n % ORBIT_W, n / ORBIT_W), 0).xy; }
@@ -48,7 +52,14 @@ void main() {
   vec2 dc = scaled ? vec2(0.0) : dcm * ex2(Edc);
   int n = 0;
   bool escaped = false;
+  bool interior = false;
   bool glitch = false;
+  // Innen-Erkennung: letzter Vergleichswert (plain: z, skaliert: w·2^pE)
+  bool hasPrev = false;
+  vec2 prevV = vec2(0.0);
+  int prevE = 0;
+  float prevDelta = 1e30;
+  int shrinking = 0;
   float r2 = 0.0;
   int i = 0;
 
@@ -64,6 +75,18 @@ void main() {
         n = 0;
         Z = vec2(0.0);
       } else {
+        if (n > 0 && Z == vec2(0.0)) {
+          // Referenz im Nukleus: Zeitpunkt wie ein Rebasing → δ mit dem letzten Wert vergleichen
+          if (hasPrev) {
+            float delta = length(w - prevV * ex2(prevE - E)) / length(w);
+            shrinking = delta < INTERIOR_RATE * prevDelta ? shrinking + 1 : 0;
+            if (delta < INTERIOR_TOL && shrinking >= 2) { interior = true; break; }
+            prevDelta = delta;
+          }
+          hasPrev = true;
+          prevV = w;
+          prevE = E;
+        }
         w = 2.0 * cmul(Z, w) + cmul(w, w) * ex2(E) + dcm * ex2(Edc - E);
         n++;
         // Renormierung: |w| ≈ 1 halten, Exponent mitführen
@@ -77,6 +100,9 @@ void main() {
           d = w * ex2(E);
           dc = dcm * ex2(Edc);
           scaled = false;
+          hasPrev = false;
+          prevDelta = 1e30;
+          shrinking = 0;
         }
         continue;
       }
@@ -86,6 +112,16 @@ void main() {
     r2 = dot(z, z);
     if (r2 > BAILOUT2) { escaped = true; break; }
     if (u_rebase > 0.5) {
+      if (r2 < dot(d, d) && r2 > 0.0) {
+        if (hasPrev) {
+          float delta = length(z - prevV) / sqrt(r2);
+          shrinking = delta < INTERIOR_RATE * prevDelta ? shrinking + 1 : 0;
+          if (delta < INTERIOR_TOL && shrinking >= 2) { interior = true; break; }
+          prevDelta = delta;
+        }
+        hasPrev = true;
+        prevV = z;
+      }
       if (r2 < dot(d, d) || n >= u_refLen - 1) { d = z; n = 0; Z = vec2(0.0); }
     } else {
       if (r2 < 1e-6 * dot(Z, Z)) glitch = true;  // |z| < 10⁻³·|Z|: Präzisionsverlust

@@ -521,3 +521,15 @@ progress::-webkit-progress-value,
 progress::-moz-progress-bar {
   background: var(--accent);
 }
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.chip.accent {
+  border-color: rgba(159, 178, 212, 0.45);
+  color: var(--text);
+}
