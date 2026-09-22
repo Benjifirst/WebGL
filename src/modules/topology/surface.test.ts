@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { analyze, formatPresentation } from './group';
 import { classify, connectedSum, formatWord, parseWord, WordError } from './surface';
 
 const c = (w: string) => classify(parseWord(w));
@@ -55,9 +56,12 @@ describe('Klassifikation geschlossener Flächen', () => {
   });
 
   it('Fundamentalgruppe über Spannbaum', () => {
-    expect(c('a b A B').pi1).toBe('⟨ a, b | aba⁻¹b⁻¹ ⟩');
-    expect(c('a A').pi1).toBe('1 (trivial)'); // Sphäre: zwei Ecken, a ist Baumkante
-    expect(c('a a').pi1).toBe('⟨ a | aa ⟩');
+    expect(formatPresentation(c('a b A B').pi1)).toBe('⟨ a, b | aba⁻¹b⁻¹ ⟩');
+    expect(c('a A').pi1.gens).toEqual([]); // Sphäre: zwei Ecken, a ist Baumkante
+    expect(formatPresentation(c('a a').pi1)).toBe('⟨ a | a² ⟩');
+    expect(analyze(c('a b c, d e⁻¹ a⁻¹, e f⁻¹ b⁻¹, f d⁻¹ c⁻¹').pi1).name).toBe('1'); // Tetraeder
+    expect(analyze(c('a b a b⁻¹').pi1).name).toBe('π₁(K)');
+    expect(analyze(c('c a d a').pi1).name).toBe('ℤ'); // Möbiusband
   });
 });
 
@@ -93,13 +97,14 @@ describe('Allgemeine 2-Komplexe', () => {
     expect(s.surface).toBe(false);
     expect(s.reasons[0]).toMatch(/3 Polygonseiten/);
     expect(s.homology).toBe('ℤ/3');
-    expect(s.pi1).toBe('⟨ a | aaa ⟩');
+    expect(formatPresentation(s.pi1)).toBe('⟨ a | a³ ⟩');
+    expect(analyze(s.pi1).name).toBe('ℤ/3');
   });
   it('Eingeschnürter Torus: Meridian a mit einer Scheibe zugeklebt ≃ S² ∨ S¹', () => {
     const s = c('a b a⁻¹ b⁻¹, a');
     expect(s.surface).toBe(false);
     expect(s.groups.map((g) => g.betti)).toEqual([1, 1, 1]);
-    expect(s.pi1).toBe('⟨ a, b | aba⁻¹b⁻¹, a ⟩'); // ≅ ℤ (erzeugt von b)
+    expect(analyze(s.pi1).name).toBe('ℤ'); // ⟨a, b | [a, b], a⟩ ≅ ℤ (erzeugt von b)
   });
   it('Ein einzelnes Polygon mit paarweise verklebten Kanten ist immer eine Fläche', () => {
     for (const w of ['a a⁻¹ b b⁻¹', 'a b c a⁻¹ b⁻¹ c⁻¹', 'a b a c b c', 'a a b c b c']) expect(c(w).surface).toBe(true);

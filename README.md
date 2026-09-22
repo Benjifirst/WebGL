@@ -10,12 +10,12 @@ Flächen); alle Module teilen sich eine gemeinsame Render-Infrastruktur.
 
 | Modul | Inhalt |
 | --- | --- |
-| **Graphen** | Reelle Funktionen: `y = f(x)`, implizite Kurven `F(x,y) = G(x,y)`, Ungleichungen als Bereiche (`<`, `>`, `≤`, `≥`), parametrisch `(x(t), y(t))`, polar `r = f(t)`. Weitere Buchstaben werden automatisch zu Parametern mit Regler (auch animierbar). Nullstellen, Extrema und Schnittpunkte werden markiert, Funktionswerte unter dem Cursor angezeigt. |
+| **Graphen** | Reelle Funktionen: `y = f(x)`, eigene Funktionen `f(x) = …` mit symbolischen Ableitungen `f'(x)`, `f''(x)`, implizite Kurven, Bereiche und Ungleichungsketten (`0 < y < 1 − x²`), Einschränkungen `sin(x) {0 < x < π}`, parametrische und polare Kurven, Punkte `(a, f(a))` und Wertzeilen. Funktionen: `|x|`, `x!`, `gamma`, `erf`, `floor`, `mod`, `min`/`max`, `asin` …, stückweise `if(…)`, `sum`/`prod`/`int` (ein Integral ohne x wird als Fläche gezeigt). Weitere Buchstaben werden Parameter mit Regler (einstellbarer Bereich, animierbar). Nullstellen (auch Berührstellen), Extrema und Schnittpunkte werden markiert. |
 | **Komplex** | Domain Coloring komplexer Funktionen f(z): Farbton = arg f(z), Helligkeitsstufen = \|f(z)\| verdoppelt sich, optional Phasenlinien und z-Gitter. |
 | **3D** | *Formen*: Raymarching über Distanzfelder (Torus, Doppeltorus, Torusknoten (p,q), Hopf-Ringe, Gyroid, Mandelbulb, Menger-Schwamm). *Implizit*: beliebige Flächen F(x,y,z) = 0. *Parametrisch*: Flächen (x,y,z)(u,v) wie Möbiusband oder Kleinsche Flasche – Rückseiten warm gefärbt. |
 | **Hyperbolisch** | Parkettierungen {p,q} in Poincaré-Scheibe, Halbebene oder Klein-Modell; sieben uniforme Varianten per Wythoff-Konstruktion; Ziehen verschiebt hyperbolisch, „Bewegen“ gleitet entlang einer Geodäte. |
 | **Mandelbrot** | Deep Zoom bis ~10⁻²⁹⁰ per Störungsrechnung mit Referenzorbit in beliebiger Präzision; „Minibrot suchen“ findet per Newton-Verfahren Mini-Mandelbrots als Zoomziele. |
-| **Topologie** | *Polygone*: 2-dimensionale CW-Komplexe aus Kantenwörtern (`a b a⁻¹ b⁻¹`, mehrere Polygone, beliebige Vielfachheiten) mit Diagramm, Flächenerkennung über Ecken-Links, Klassifikation, π₁ und Verklebe-Animation. *Räume*: CW-Räume beliebiger Dimension per Ausdruck – Sⁿ, Dⁿ, Tⁿ, ℝPⁿ, ℂPⁿ, L(p,q), M(n,k), F(g), N(k) mit ∨, #, ×, Σ, ⊔, Zellen anheften (`∪ e²(2)`) und Gerüst-Quotienten (`/ sk(1)`); Keilprodukte als 3D-Blumenstrauß. *Simplizial*: Facettenlisten (z. B. 7-Ecken-Torus, 6-Ecken-ℝP²). Überall exakte Homologie Hₖ über ℤ (Smith-Normalform), Kohomologie, Betti-Zahlen, χ, Poincaré-Polynom. |
+| **Topologie** | *Polygone*: 2-dimensionale CW-Komplexe aus Kantenwörtern (`a b a⁻¹ b⁻¹`, mehrere Polygone, beliebige Vielfachheiten) mit Diagramm, Flächenerkennung über Ecken-Links, Klassifikation und Verklebe-Animation. *Räume*: CW-Räume beliebiger Dimension per Ausdruck – Sⁿ, Dⁿ, Tⁿ, ℝPⁿ, ℂPⁿ, K, Möbiusband, L(p,q), M(n,k), F(g), N(k), Poincaré-Sphäre und Präsentationskomplexe `⟨a, b | a², b³⟩` mit ∨, #, ×, ∧, Σ, ⊔, Rand `∂X`, Kegel, Verbund, Zellen anheften (`∪ e²(2)`) und Quotienten (`/ ∂`, `/ sk(1)`); Keilprodukte als 3D-Blumenstrauß, sonst Zellstruktur mit Randabbildungen. *Simplizial*: Facettenlisten (z. B. 7-Ecken-Torus, 6-Ecken-ℝP²) mit drehbarem 3D-Modell. Überall exakte Homologie Hₖ über ℤ (Smith-Normalform), Kohomologie, Randmatrizen, χ, Poincaré-Polynom und π₁: vereinfacht (Tietze), erkannt (frei, abelsch, Flächengruppe, freies Produkt) und bei endlichen Gruppen per Todd–Coxeter gezählt. |
 
 ## Bedienung
 
@@ -41,7 +41,8 @@ src/
   core/        gl.ts (Kompilieren, Fehler → Zeilennummern), renderer.ts (Fullscreen-Triangle,
                Render-on-Demand, progressive Auflösung, gekachelter Export), view.ts (Pan/Zoom/Pinch),
                prelude.glsl (gemeinsame Shader-Präambel), tiles.ts
-  math/        parser.ts (Tokenizer → Recursive Descent → AST), real.ts / complex.ts (Codegen + Referenz)
+  math/        parser.ts (Tokenizer → Recursive Descent → AST), real.ts / complex.ts (Codegen + Referenz),
+               diff.ts (symbolisches Ableiten, Einsetzen eigener Funktionen)
   modules/     plot, domain, shapes, hyperbolic, mandelbrot, topology, grid (Testmodul, nur per #m=grid)
   ui/          Panel, Formelfelder, Widgets, URL-Zustand, Achsen (Beschriftungsebene)
 ```
@@ -66,9 +67,15 @@ src/
   inklusive), Kohomologie per universellem Koeffiziententheorem; Produkte mit Koszul-Vorzeichen
   (Künneth samt Tor-Termen stimmt), reduzierte Suspension, Keil, zusammenhängende Summe.
   Polygone: Eckklassen per Union-Find, Flächenerkennung über die Links der Ecken, Orientierbarkeit
-  als 2-Färbung, π₁ über einen Spannbaum des 1-Skeletts.
-- **Graphen**: explizite Kurven werden je Bildspalte abgetastet (Polstellen erkannt und
-  unterbrochen), implizite Kurven und Ungleichungen im Shader über |F|/|∇F|.
+  als 2-Färbung, π₁ über einen Spannbaum des 1-Skeletts. Räume führen neben dem Kettenkomplex eine
+  π₁-Präsentation mit (van Kampen: ∨ → freies Produkt, × → direktes Produkt, # → Wortverkettung bzw.
+  freies Produkt) und den Rand als Teilkomplex (für ∂X und X/∂). Gruppen: Tietze-Transformationen,
+  Abelisierung per Smith-Normalform, Todd–Coxeter (HLT mit Koinzidenzen) für die Ordnung.
+- **Graphen**: strenge Semantik (sqrt, ln, asin … außerhalb des Definitionsbereichs undefiniert,
+  x^(p/q) für x < 0 nur bei ungeradem q); Ausdrücke werden zu Closures kompiliert. Explizite Kurven
+  werden adaptiv abgetastet (Polstellen und Ränder des Definitionsbereichs per Bisektion), implizite
+  Kurven und Bereiche im Shader über |F|/|∇F|. Integrale per Tanh-Sinh-Quadratur (verträgt
+  Randsingularitäten), Γ per Stirling-Reihe, erf per Reihe bzw. Kettenbruch.
 - **Mandelbrot**: δ_{n+1} = 2Z_nδ_n + δ_n² + δc in float, unterhalb 2⁻¹⁰⁰ als Mantisse/Exponent;
   Rebasing nach Zhuoran, Glitch-Erkennung nach Pauldelbrot (zum Vergleich einblendbar);
   Innen-Erkennung über Konvergenz an aufeinanderfolgenden Rebasings. Minibrot-Suche: Ball-Perioden-

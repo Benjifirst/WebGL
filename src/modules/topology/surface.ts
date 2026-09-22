@@ -19,6 +19,7 @@
 import { ParseError } from '../../math/parser';
 import { complex, homology } from './chain';
 import type { ChainComplex, HomologyGroup } from './chain';
+import type { Presentation } from './group';
 
 export interface EdgeUse {
   label: string;
@@ -108,8 +109,8 @@ export interface SurfaceInfo {
   symbol: string;
   normalForm: string;
   homology: string;
-  /** Präsentation der Fundamentalgruppe des 2-Komplexes */
-  pi1: string;
+  /** Präsentation der Fundamentalgruppe des 2-Komplexes (Komponente der ersten Ecke) */
+  pi1: Presentation;
   /** Eckklasse jeder Polygonecke: vertexClass[f][i] = Klasse der Ecke vor Kante i */
   vertexClass: number[][];
   /** Standardpolygon für die Verklebe-Animation (falls vorhanden) */
@@ -264,7 +265,7 @@ export function classify(faces: Face[]): SurfaceInfo {
   const { name, symbol, normalForm } = surface
     ? describe(orientable, genus, boundary, chi, connected)
     : { name: '2-dimensionaler CW-Komplex (keine Fläche)', symbol: '—', normalForm: '—' };
-  const pi1 = connected ? presentation(faces, uses, uf, classOf, V) : '— (nicht zusammenhängend)';
+  const pi1 = presentation(faces, uses, uf, classOf, V);
   const fmt = (g: HomologyGroup) => {
     const parts = [...(g.betti ? [g.betti === 1 ? 'ℤ' : `ℤ${sup(g.betti)}`] : []), ...g.torsion.map((t) => `ℤ/${t}`)];
     return parts.join(' ⊕ ') || '0';
@@ -310,13 +311,13 @@ function describe(orientable: boolean, g: number, r: number, chi: number, connec
         : undefined;
     name = special ?? `Orientierbare Fläche vom Geschlecht ${g}${rand}`;
     if (special && r === 0) name = special;
-    symbol = g === 0 ? 'S²' : g === 1 ? 'T²' : `T² # … # T²  (${g}×)`;
+    symbol = g === 0 ? 'S²' : g === 1 ? 'T²' : g <= 4 ? Array(g).fill('T²').join(' # ') : `T² # … # T²  (${g}×)`;
     if (r) symbol = `Σ${sub(g)},${sub(r)}`;
     normalForm = g === 0 ? 'a a⁻¹' : Array.from({ length: g }, (_, i) => `a${i + 1} b${i + 1} a${i + 1}⁻¹ b${i + 1}⁻¹`).join(' ');
   } else {
     const special = r === 0 ? ['', 'Projektive Ebene', 'Kleinsche Flasche'][g] : g === 1 && r === 1 ? 'Möbiusband' : undefined;
     name = special || `Nicht orientierbare Fläche mit ${g} Kreuzhauben${rand}`;
-    symbol = g === 1 ? 'ℝP²' : g === 2 ? 'ℝP² # ℝP²  (≅ K)' : `ℝP² # … # ℝP²  (${g}×)`;
+    symbol = g === 1 ? 'ℝP²' : g === 2 ? 'ℝP² # ℝP² ≅ K' : g <= 4 ? Array(g).fill('ℝP²').join(' # ') : `ℝP² # … # ℝP²  (${g}×)`;
     if (r) symbol = `N${sub(g)},${sub(r)}`;
     normalForm = Array.from({ length: g }, (_, i) => `c${i + 1} c${i + 1}`).join(' ');
   }
@@ -326,8 +327,8 @@ function describe(orientable: boolean, g: number, r: number, chi: number, connec
 }
 
 /**
- * π₁ des 2-Komplexes: Erzeuger = Kanten außerhalb eines Spannbaums des 1-Skeletts
- * (Ecken = Eckklassen), Relationen = Randwörter der Polygone ohne Baumkanten.
+ * π₁ des 2-Komplexes (Komponente der ersten Ecke): Erzeuger = Kanten außerhalb eines Spannbaums
+ * des 1-Skeletts (Ecken = Eckklassen), Relationen = Randwörter der Polygone (Baumkanten = 1).
  */
 function presentation(
   faces: Face[],
@@ -335,7 +336,7 @@ function presentation(
   uf: UnionFind,
   classOf: Map<number, number>,
   V: number,
-): string {
+): Presentation {
   const offset: number[] = [];
   let n = 0;
   for (const face of faces) {
@@ -346,22 +347,25 @@ function presentation(
   // Kante als Verbindung zweier Eckklassen (erstes Vorkommen genügt)
   const tree = new Set<string>();
   const treeUF = new UnionFind(V);
+  const edgeEnds = new Map<string, [number, number]>();
   for (const [label, list] of uses) {
     const u = list[0]!;
     const a = cls(u.f, u.i);
     const b = cls(u.f, u.i + 1);
+    edgeEnds.set(label, [a, b]);
     if (treeUF.find(a) !== treeUF.find(b)) {
       treeUF.union(a, b);
       tree.add(label);
     }
   }
-  const gens = [...uses.keys()].filter((l) => !tree.has(l));
+  // nur die Komponente der ersten Ecke
+  const base = treeUF.find(cls(0, 0));
+  const gens = [...uses.keys()].filter((l) => !tree.has(l) && treeUF.find(edgeEnds.get(l)![0]) === base);
+  const index = new Map(gens.map((g, i) => [g, i + 1]));
   const rels = faces
-    .map((face) => face.filter((e) => !tree.has(e.label)).map((e) => e.label + (e.sign < 0 ? '⁻¹' : '')).join(''))
-    .map((w) => w || '1');
-  const nontrivial = rels.filter((w) => w !== '1');
-  if (!gens.length) return '1 (trivial)';
-  return `⟨ ${gens.join(', ')} | ${nontrivial.length ? nontrivial.join(', ') : '–'} ⟩`;
+    .filter((_, f) => treeUF.find(cls(f, 0)) === base)
+    .map((face) => face.filter((e) => index.has(e.label)).map((e) => e.sign * index.get(e.label)!));
+  return { gens, rels };
 }
 
 /** Zusammenhängende Summe: Normalform eines Summanden mit frischen Bezeichnern anhängen */

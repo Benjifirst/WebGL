@@ -87,6 +87,9 @@ export function evaluate(n: Node, z: C): C {
         case 're': return [a[0], 0];
         case 'im': return [a[1], 0];
       }
+      return [NaN, NaN];
     }
+    default:
+      return [NaN, NaN];
   }
 }

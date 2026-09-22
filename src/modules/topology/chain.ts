@@ -249,18 +249,24 @@ export function wedge(X: ChainComplex, Y: ChainComplex): ChainComplex {
 
 /** Produkt X × Y (Zellen e×f, ∂(e×f) = ∂e×f + (−1)^{|e|} e×∂f) */
 export function product(X: ChainComplex, Y: ChainComplex): ChainComplex {
+  return productIndexed(X, Y).complex;
+}
+
+/** Produkt samt Index der Produktzelle (i-Zelle a von X) × (j-Zelle b von Y) in Dimension i + j */
+export function productIndexed(X: ChainComplex, Y: ChainComplex) {
   const nx = dim(X), ny = dim(Y), n = nx + ny;
-  // Index der Produktzelle (i-Zelle a von X, j-Zelle b von Y) in Dimension i + j
-  const index: number[][][] = [];
+  const start: number[][] = [];
   const cells = Array(n + 1).fill(0);
-  for (let i = 0; i <= nx; i++) {
-    index[i] = [];
-    for (let j = 0; j <= ny; j++) {
-      index[i]![j] = [cells[i + j]];
-      cells[i + j] += X.cells[i]! * Y.cells[j]!;
+  // Reihenfolge in Dimension k: erst (0, k), dann (1, k−1), … – die 1-Zellen sind also pt×Y¹, dann X¹×pt
+  for (let k = 0; k <= n; k++) {
+    for (let i = 0; i <= nx; i++) {
+      const j = k - i;
+      if (j < 0 || j > ny) continue;
+      (start[i] ??= [])[j] = cells[k];
+      cells[k] += X.cells[i]! * Y.cells[j]!;
     }
   }
-  const at = (i: number, a: number, j: number, b: number) => index[i]![j]![0]! + a * Y.cells[j]! + b;
+  const at = (i: number, a: number, j: number, b: number) => start[i]![j]! + a * Y.cells[j]! + b;
   const out = complex(cells);
   for (let i = 0; i <= nx; i++) {
     for (let j = 0; j <= ny; j++) {
@@ -281,7 +287,85 @@ export function product(X: ChainComplex, Y: ChainComplex): ChainComplex {
       }
     }
   }
+  return { complex: out, at };
+}
+
+/** Teilkomplex als Zellmengen je Dimension (Indizes) */
+export type Cells = number[][];
+
+/** Ist A ein Teilkomplex (Rand jeder Zelle von A liegt in A)? */
+export function isSubcomplex(X: ChainComplex, A: Cells): boolean {
+  for (let k = 1; k < X.cells.length; k++) {
+    const inA = new Set(A[k - 1] ?? []);
+    for (const c of A[k] ?? []) {
+      for (let r = 0; r < X.cells[k - 1]!; r++) if (X.d[k]![r]![c] !== 0n && !inA.has(r)) return false;
+    }
+  }
+  return true;
+}
+
+/** Der Teilkomplex A als eigener Kettenkomplex */
+export function subcomplex(X: ChainComplex, A: Cells): ChainComplex {
+  const n = Math.max(0, ...A.map((c, k) => (c.length ? k : 0)));
+  const cells = Array.from({ length: n + 1 }, (_, k) => (A[k] ?? []).length);
+  const out = complex(cells);
+  for (let k = 1; k <= n; k++) {
+    const rows = A[k - 1] ?? [];
+    const cols = A[k] ?? [];
+    out.d[k] = rows.map((r) => cols.map((c) => X.d[k]![r]![c]!));
+  }
   return out;
+}
+
+/**
+ * Quotient X/A nach einem nichtleeren Teilkomplex: die Zellen von A verschwinden, ihre 0-Zellen werden
+ * zu einem neuen Punkt (Index 0, Basispunkt). Zellulär: C(X/A) = C(X)/C(A) ⊕ ℤ·[A] in Grad 0.
+ */
+export function quotientSub(X: ChainComplex, A: Cells): ChainComplex {
+  if (!A.some((c) => c.length)) throw new Error('Quotient nach der leeren Menge');
+  const n = dim(X);
+  const keep = X.cells.map((c, k) => {
+    const inA = new Set(A[k] ?? []);
+    return Array.from({ length: c }, (_, i) => i).filter((i) => !inA.has(i));
+  });
+  const cells = keep.map((l, k) => (k === 0 ? l.length + 1 : l.length));
+  const out = complex(cells);
+  for (let k = 1; k <= n; k++) {
+    if (k === 1) {
+      const aPts = new Set(A[0] ?? []);
+      const pointRow = keep[1]!.map((c) => [...aPts].reduce((s, r) => s + X.d[1]![r]![c]!, 0n));
+      out.d[1] = [pointRow, ...keep[0]!.map((r) => keep[1]!.map((c) => X.d[1]![r]![c]!))];
+    } else {
+      out.d[k] = keep[k - 1]!.map((r) => keep[k]!.map((c) => X.d[k]![r]![c]!));
+    }
+  }
+  return out;
+}
+
+/** Smash-Produkt X ∧ Y = X × Y / (X ∨ Y) (Basispunkte = erste 0-Zellen) */
+export function smash(X: ChainComplex, Y: ChainComplex): ChainComplex {
+  const { complex: P, at } = productIndexed(X, Y);
+  const A: Cells = P.cells.map(() => []);
+  // X × {y₀} und {x₀} × Y
+  for (let i = 0; i < X.cells.length; i++) for (let a = 0; a < X.cells[i]!; a++) A[i]!.push(at(i, a, 0, 0));
+  for (let j = 1; j < Y.cells.length; j++) for (let b = 0; b < Y.cells[j]!; b++) A[j]!.push(at(0, 0, j, b));
+  for (let b = 1; b < Y.cells[0]!; b++) A[0]!.push(at(0, 0, 0, b));
+  return quotientSub(P, A);
+}
+
+/** Möbiusband: Seele a, Randkreis b, ∂e² = b − 2a (der Rand läuft zweimal um die Seele) */
+export const moebius = (): ChainComplex => complex([1, 2, 1], { 2: [[-2], [1]] });
+
+/** Poincaré-Homologiesphäre: π₁ = ⟨s, t | (st)² = s³ = t⁵⟩, zelluläre Ränder = Exponentensummen */
+export const poincareSphere = (): ChainComplex => complex([1, 2, 2, 1], { 2: [[-1, 3], [2, -5]], 3: [[0], [0]] });
+
+/** Präsentationskomplex: eine 0-Zelle, eine 1-Zelle je Erzeuger, eine 2-Zelle je Relation */
+export function presentationComplex(gens: number, rels: number[][]): ChainComplex {
+  const d2 = Array.from({ length: gens }, () => Array<number>(rels.length).fill(0));
+  rels.forEach((r, j) => {
+    for (const x of r) d2[Math.abs(x) - 1]![j]! += Math.sign(x);
+  });
+  return rels.length ? complex([1, gens, rels.length], { 2: d2 }) : complex([1, gens]);
 }
 
 /** Reduzierte Suspension ΣX (Basispunkt = erste 0-Zelle): jede andere k-Zelle wird zur (k+1)-Zelle */

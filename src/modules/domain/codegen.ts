@@ -1,11 +1,11 @@
 // AST → GLSL-Ausdruck vom Typ vec2 (komplexe Zahl als (Re, Im)).
 // Semantik identisch zu evaluate() in complex.ts.
-import type { FunctionName, Node } from '../../math/parser';
+import type { Node } from '../../math/parser';
 import { glslFloat, integerExponent } from '../../math/real';
 
 export { glslFloat };
 
-const CALLS: Record<FunctionName, string> = {
+const CALLS: Record<string, string> = {
   exp: 'cexp', log: 'clog', ln: 'clog', sqrt: 'csqrt', sin: 'csin', cos: 'ccos', tan: 'ctan',
   sinh: 'csinh', cosh: 'ccosh', tanh: 'ctanh', conj: 'cconj', abs: 'cabs', re: 'cre', im: 'cim',
 };
@@ -33,8 +33,11 @@ export function codegen(n: Node): string {
       return 'z';
     case 'neg':
       return `(-${codegen(n.arg)})`;
-    case 'call':
-      return `${CALLS[n.fn]}(${codegen(n.arg)})`;
+    case 'call': {
+      const f = CALLS[n.fn];
+      if (!f) throw new Error(`${n.fn} ist nicht komplex`);
+      return `${f}(${codegen(n.arg)})`;
+    }
     case 'bin': {
       const a = () => codegen(n.left);
       const b = () => codegen(n.right);
@@ -62,5 +65,7 @@ export function codegen(n: Node): string {
         }
       }
     }
+    default:
+      throw new Error('Nicht unterstützter Ausdruck');
   }
 }

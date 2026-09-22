@@ -648,3 +648,166 @@ progress::-moz-progress-bar {
 .param-row .slider {
   flex: 1;
 }
+
+/* ---- Menüs und Abschnitte ---- */
+
+select.menu {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--field);
+  color: var(--muted);
+  font-size: 12px;
+  max-width: 100%;
+}
+
+select.menu:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+select.menu option,
+select.menu optgroup {
+  background: #16181d;
+  color: var(--text);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.section > h3 {
+  margin: 4px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.row-note {
+  margin: -2px 0 0 22px;
+  font-size: 12px;
+  color: var(--muted);
+  font-family: var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.row-note.error {
+  color: var(--error);
+  font-family: inherit;
+}
+
+.row-note .chip {
+  margin-left: 4px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+
+.plot-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.help ul {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.help li {
+  margin: 2px 0;
+}
+
+.help code {
+  color: var(--text);
+}
+
+.param {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.param-range {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding-left: 4px;
+}
+
+.num-field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+input.num {
+  width: 100%;
+  min-width: 0;
+  padding: 3px 5px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--field);
+  font-size: 12px;
+}
+
+/* ---- Randmatrizen ---- */
+
+.matrix-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+  overflow-x: auto;
+}
+
+table.matrix {
+  border-collapse: collapse;
+  font: 11px var(--mono);
+}
+
+table.matrix th,
+table.matrix td {
+  padding: 1px 5px;
+  text-align: right;
+}
+
+table.matrix th {
+  color: var(--muted);
+  font-weight: normal;
+}
+
+table.matrix td.zero {
+  color: rgba(125, 132, 145, 0.45);
+}
+
+table.matrix td.pos {
+  color: #9fbaf0;
+}
+
+table.matrix td.neg {
+  color: #ee9a90;
+}
+
+.facts dd strong {
+  font-weight: 600;
+  color: var(--text);
+}
+
+[hidden] {
+  display: none !important;
+}

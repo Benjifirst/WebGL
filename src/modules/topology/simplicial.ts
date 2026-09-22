@@ -5,6 +5,7 @@
 import { ParseError } from '../../math/parser';
 import { complex } from './chain';
 import type { ChainComplex } from './chain';
+import type { Presentation } from './group';
 
 export interface SimplicialInfo {
   complex: ChainComplex;
@@ -20,6 +21,8 @@ export interface SimplicialInfo {
   pseudomanifold: boolean;
   boundaryFaces: number;
   orientable: boolean | null;
+  /** Kantenweg-Gruppe (π₁ der Komponente der ersten Ecke) */
+  pi1: Presentation;
 }
 
 const key = (s: string[]) => s.join('\u0001');
@@ -128,6 +131,7 @@ export function simplicial(facetsIn: string[][]): SimplicialInfo {
     }
   }
   return {
+    pi1: edgePathGroup(lists[0] ?? [], lists[1] ?? [], lists[2] ?? []),
     complex: complex(cells, d),
     f: cells,
     vertices: (lists[0] ?? []).map((s) => s[0]!),
@@ -138,6 +142,36 @@ export function simplicial(facetsIn: string[][]): SimplicialInfo {
     boundaryFaces,
     orientable,
   };
+}
+
+/**
+ * Kantenweg-Gruppe: Spannbaum des 1-Gerüsts, Erzeuger = übrige Kanten (von kleiner zu großer Ecke),
+ * Relation je Dreieck [a, b, c]: (ab)(bc)(ac)⁻¹ mit Baumkanten = 1.
+ */
+function edgePathGroup(verts: string[][], edges: string[][], triangles: string[][]): Presentation {
+  const vIndex = new Map(verts.map((v, i) => [v[0]!, i]));
+  const parent = verts.map((_, i) => i);
+  const find = (a: number): number => (parent[a] === a ? a : (parent[a] = find(parent[a]!)));
+  const tree = new Set<string>();
+  for (const e of edges) {
+    const a = find(vIndex.get(e[0]!)!), b = find(vIndex.get(e[1]!)!);
+    if (a !== b) {
+      parent[a] = b;
+      tree.add(key(e));
+    }
+  }
+  if (!verts.length) return { gens: [], rels: [] };
+  const base = find(0);
+  const gensE = edges.filter((e) => !tree.has(key(e)) && find(vIndex.get(e[0]!)!) === base);
+  const index = new Map(gensE.map((e, i) => [key(e), i + 1]));
+  const letter = (a: string, b: string, sign: number) => {
+    const g = index.get(key([a, b]));
+    return g ? [sign * g] : [];
+  };
+  const rels = triangles
+    .filter((t) => find(vIndex.get(t[0]!)!) === base)
+    .map((t) => [...letter(t[0]!, t[1]!, 1), ...letter(t[1]!, t[2]!, 1), ...letter(t[0]!, t[2]!, -1)]);
+  return { gens: gensE.map((e) => `${e[0]}${e[1]}`), rels };
 }
 
 /** Bekannte Triangulierungen */

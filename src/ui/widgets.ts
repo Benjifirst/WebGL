@@ -86,3 +86,29 @@ export function chips(items: readonly { label: string; title?: string; onClick: 
   }
   return el;
 }
+
+/** Auswahlmenü für Vorlagen (übersichtlicher als viele Chips); springt nach der Wahl zurück */
+export function menu(
+  placeholder: string,
+  groups: readonly { label: string; items: readonly { label: string; title?: string }[] }[],
+  onPick: (group: number, item: number) => void,
+): HTMLSelectElement {
+  const select = h('select', { class: 'menu', 'aria-label': placeholder });
+  select.append(h('option', { value: '' }, placeholder));
+  groups.forEach((g, gi) => {
+    const og = h('optgroup', { label: g.label });
+    g.items.forEach((it, ii) => og.append(h('option', { value: `${gi}:${ii}`, title: it.title }, it.label)));
+    select.append(og);
+  });
+  select.addEventListener('change', () => {
+    const [gi, ii] = select.value.split(':').map(Number);
+    select.value = '';
+    if (gi !== undefined && ii !== undefined && !Number.isNaN(gi)) onPick(gi, ii);
+  });
+  return select;
+}
+
+/** Abschnitt mit kleiner Überschrift */
+export function section(title: string, ...children: (Node | string | null | undefined)[]): HTMLElement {
+  return h('section', { class: 'section' }, h('h3', {}, title), ...children);
+}
