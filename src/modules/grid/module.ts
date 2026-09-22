@@ -1,5 +1,6 @@
 import type { ModuleHost, VizModule } from '../types';
 import { toggle } from '../../ui/widgets';
+import { drawAxes2D } from '../../ui/axes';
 import gridSource from './grid.frag?raw';
 
 let source = gridSource;
@@ -27,6 +28,10 @@ export const gridModule: VizModule = {
   name: 'Gitter',
   hidden: true, // Platzhalter aus M0 zum Testen der Infrastruktur: #m=grid
   initialView: { cx: 0, cy: 0, scale: 0.01 },
+
+  drawOverlay(ctx, i) {
+    if (i.axes) drawAxes2D(ctx, i.view, i.width, i.height, { xName: 'x', yName: 'y' });
+  },
 
   get fragSource() {
     return injectError ? withInjectedError(source).src : source;

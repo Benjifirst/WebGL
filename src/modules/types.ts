@@ -16,6 +16,16 @@ export interface FrameInfo {
   tile: Tile;
 }
 
+/** Angaben für die Beschriftungsebene; der Kontext ist auf CSS-Pixel skaliert. */
+export interface OverlayInfo {
+  view: ViewState;
+  /** Bildgröße in CSS-Pixeln */
+  width: number;
+  height: number;
+  /** Achsen und Beschriftung gewünscht (globaler Schalter) */
+  axes: boolean;
+}
+
 /** Dienste der App für das aktive Modul. */
 export interface ModuleHost {
   /** Zustand geändert → neu zeichnen */
@@ -47,6 +57,8 @@ export interface VizModule {
   prepare?(gl: WebGL2RenderingContext): void;
   /** Zusätzliche Geometrie nach dem Fullscreen-Pass zeichnen (Tiefenpuffer verfügbar) */
   draw?(gl: WebGL2RenderingContext, frame: FrameInfo): void;
+  /** Beschriftungsebene zeichnen (Achsen, Hinweise); wird auch in den PNG-Export übernommen */
+  drawOverlay?(ctx: CanvasRenderingContext2D, info: OverlayInfo): void;
   /** Statuszeile für die Cursorposition (Weltkoordinaten) */
   status?(x: number, y: number): string;
   /** Modulzustand für den URL-Hash (Schlüssel x, y, s überschreiben die Ansicht) */

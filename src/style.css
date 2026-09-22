@@ -43,6 +43,16 @@ body {
   cursor: grabbing;
 }
 
+/* Beschriftungsebene (Achsen) über der WebGL-Fläche, lässt Eingaben durch */
+#overlay {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
 button,
 input,
 select {
@@ -65,7 +75,7 @@ button {
   position: fixed;
   top: 12px;
   left: 12px;
-  width: min(360px, calc(100vw - 24px));
+  width: min(400px, calc(100vw - 24px));
   max-height: calc(100vh - 24px);
   overflow: auto;
   padding: 8px;
@@ -137,6 +147,10 @@ button.icon {
 button.icon:hover {
   background: var(--field-hover);
   color: var(--text);
+}
+
+button.icon[aria-pressed='true'] {
+  color: var(--accent);
 }
 
 /* ---- Segmentierte Auswahl ---- */
@@ -479,7 +493,8 @@ input[type='range'] {
 }
 
 #panel header .segmented button {
-  padding: 4px 6px;
+  padding: 4px 5px;
+  font-size: 12px;
 }
 
 /* ---- Export ---- */
@@ -532,4 +547,35 @@ progress::-moz-progress-bar {
 .chip.accent {
   border-color: rgba(159, 178, 212, 0.45);
   color: var(--text);
+}
+
+/* ---- Topologie ---- */
+
+.diagram-box {
+  background: var(--field);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.diagram {
+  display: block;
+  max-height: 220px;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 3px 10px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.facts dt {
+  color: var(--muted);
+}
+
+.facts dd {
+  margin: 0;
+  font-family: var(--mono);
+  word-break: break-word;
 }

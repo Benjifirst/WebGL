@@ -2,6 +2,7 @@ import type { ModuleHost, VizModule } from '../types';
 import type { ViewState } from '../../core/view';
 import type { C } from '../../math/complex';
 import { read } from '../../ui/urlState';
+import { drawAxes2D } from '../../ui/axes';
 import { chips, h, segmented, slider, toggle } from '../../ui/widgets';
 import {
   compose,
@@ -161,6 +162,12 @@ export const hyperbolicModule: VizModule = {
     M = IDENTITY;
     if (a.length === 4 && a.every(Number.isFinite)) M = compose({ alpha: [a[0]!, a[1]!], beta: [a[2]!, a[3]!] }, IDENTITY);
     rebuildGeometry();
+  },
+
+  drawOverlay(ctx, i) {
+    if (!i.axes) return;
+    const half = model === 'halfplane';
+    drawAxes2D(ctx, i.view, i.width, i.height, { xName: half ? 'x' : 'Re', yName: half ? 'y' : 'Im' });
   },
 
   status(x, y) {

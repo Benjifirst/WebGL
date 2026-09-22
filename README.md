@@ -14,11 +14,14 @@ Flächen); alle Module teilen sich eine gemeinsame Render-Infrastruktur.
 | **3D** | *Formen*: Raymarching über Distanzfelder (Torus, Doppeltorus, Torusknoten (p,q), Hopf-Ringe, Gyroid, Mandelbulb, Menger-Schwamm). *Implizit*: beliebige Flächen F(x,y,z) = 0. *Parametrisch*: Flächen (x,y,z)(u,v) wie Möbiusband oder Kleinsche Flasche – Rückseiten warm gefärbt, das Möbiusband zeigt so seine Einseitigkeit. |
 | **Hyperbolisch** | Parkettierungen {p,q} der hyperbolischen Ebene in Poincaré-Scheibe, Halbebene oder Klein-Modell; sieben uniforme Varianten per Wythoff-Konstruktion; Ziehen verschiebt hyperbolisch, „Bewegen“ gleitet entlang einer Geodäte. |
 | **Mandelbrot** | Deep Zoom bis ~10⁻²⁹⁰ per Störungsrechnung mit Referenzorbit in beliebiger Präzision; „Minibrot suchen“ findet per Newton-Verfahren Mini-Mandelbrots als Zoomziele. |
+| **Topologie** | Flächen als Quotienten von Polygonen: Kantenwort eingeben (`a b a⁻¹ b⁻¹`, mehrere Polygone mit Komma), Diagramm mit Kantenfarben und Eckklassen, Klassifikation (χ, Orientierbarkeit, Rand, Geschlecht bzw. Kreuzhauben, Normalform, H₁, π₁). Zusammenhängende Summe per Knopf (`# T²`, `# ℝP²`); Verklebe-Animation des Standardpolygons für Sphäre, Torus, Kleinsche Flasche, ℝP², Möbiusband, Zylinder; Geschlecht ≥ 2 als Torus-Kette. |
 
 ## Bedienung
 
 - **Maus / Touch**: Ziehen verschiebt (im 3D-Modul: dreht), Mausrad bzw. zwei Finger zoomen um den Cursor.
-- **Tastatur**: `H` Panel ein/aus · `R` Ansicht zurücksetzen · `L` Link kopieren.
+- **Tastatur**: `H` Panel ein/aus · `R` Ansicht zurücksetzen · `L` Link kopieren · `A` Achsen.
+- **⊹ Achsen**: beschriftete Achsen (2D: Re/Im bzw. x/y, 3D: x/y/z perspektivisch); bei tiefem Zoom
+  automatisch als Abstand Δ zur Bildmitte. Die Achsen werden in den PNG-Export übernommen.
 - **⧉ Link**: Der gesamte Zustand steht im URL-Hash – Links lassen sich teilen und stellen Ansicht und Einstellungen exakt wieder her (beim Mandelbrot inklusive der Bildmitte in voller Präzision).
 - **⤓ Export**: PNG in 1×–8× der Bildschirmauflösung, optional 2× überabgetastet (Kantenglättung); gerendert wird in Kacheln.
 - **Offline**: Als Web-App installierbar (PWA), läuft nach dem ersten Besuch ohne Netz.
@@ -38,8 +41,8 @@ src/
                Render-on-Demand, progressive Auflösung, gekachelter Export), view.ts (Pan/Zoom/Pinch),
                prelude.glsl (gemeinsame Shader-Präambel), tiles.ts
   math/        parser.ts (Tokenizer → Recursive Descent → AST), real.ts / complex.ts (Codegen + Referenz)
-  modules/     domain, shapes, hyperbolic, mandelbrot, grid (Testmodul, nur per #m=grid)
-  ui/          Panel, Formelfelder, Widgets, URL-Zustand
+  modules/     domain, shapes, hyperbolic, mandelbrot, topology, grid (Testmodul, nur per #m=grid)
+  ui/          Panel, Formelfelder, Widgets, URL-Zustand, Achsen (Beschriftungsebene)
 ```
 
 - **Render-on-Demand**: gezeichnet wird nur bei Zustandsänderung (Dirty-Flag + requestAnimationFrame).
@@ -58,6 +61,9 @@ src/
 - **Hyperbolisch**: Faltung jedes Pixels ins Fundamentaldreieck (π/p, π/q, π/2) mit dem zum
   Einheitskreis orthogonalen Spiegelkreis (d² = r² + 1); Disk-Automorphismen als SU(1,1)-Matrizen,
   nach jedem Schritt per Symmetrie der Parkettierung zurückgeführt (sonst wächst |α| exponentiell).
+- **Topologie**: Eckklassen per Union-Find über die Kantenidentifikationen, χ = V − E + F,
+  Orientierbarkeit als 2-Färbung der Polygone, Randkreise aus einfach vorkommenden Kanten; π₁ über
+  einen Spannbaum des 1-Skeletts (Erzeuger = Kanten außerhalb, Relationen = Polygonwörter).
 - **Mandelbrot**: δ_{n+1} = 2Z_nδ_n + δ_n² + δc in float, unterhalb 2⁻¹⁰⁰ als Mantisse/Exponent;
   Rebasing nach Zhuoran, Glitch-Erkennung nach Pauldelbrot (zum Vergleich einblendbar);
   Innen-Erkennung über Konvergenz an aufeinanderfolgenden Rebasings. Minibrot-Suche: Ball-Perioden-

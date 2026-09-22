@@ -1,6 +1,7 @@
 import type { ModuleHost, VizModule } from '../types';
 import type { ViewState } from '../../core/view';
 import { read } from '../../ui/urlState';
+import { drawAxes2D } from '../../ui/axes';
 import { chips, h, slider, toggle } from '../../ui/widgets';
 import { fromDecimal, fromDouble, toDecimal, toDouble, withBits } from './bigfixed';
 import { computeOrbit } from './orbit';
@@ -379,6 +380,14 @@ export const mandelbrotModule: VizModule = {
     const ns = read.num(p, 'ns', 0, 0, 1);
     lastNucleus = np > 0 && ns > 0 ? { ...anchor, period: Math.round(np), size: ns } : null;
     return { cx: 0, cy: 0, scale };
+  },
+
+  drawOverlay(ctx, i) {
+    if (!i.axes) return;
+    // Absolut beschriftet, solange es lesbar bleibt; tiefer schaltet drawAxes2D auf Δ zur Bildmitte
+    // um (deren volle Koordinate steht im Panel)
+    const shift: [number, number] = [toDouble(anchor.x, anchor.bits), toDouble(anchor.y, anchor.bits)];
+    drawAxes2D(ctx, i.view, i.width, i.height, { xName: 'Re', yName: 'Im', shift });
   },
 
   prepare(gl) {

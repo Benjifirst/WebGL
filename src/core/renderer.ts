@@ -41,6 +41,8 @@ export interface RendererHooks {
   beforeDraw?(gl: WebGL2RenderingContext, frame: RenderFrame): void;
   /** Nach dem Fullscreen-Pass, z. B. für Geometrie mit Tiefentest. */
   afterDraw?(gl: WebGL2RenderingContext, frame: RenderFrame): void;
+  /** Ein Bild auf dem Canvas ist fertig (nicht bei Export-Kacheln) – z. B. für die Beschriftungsebene. */
+  onFrame?(): void;
 }
 
 interface Target {
@@ -163,6 +165,7 @@ export class Renderer {
       });
       this.measureFullFrame();
     }
+    this.hooks.onFrame?.();
   }
 
   private drawFrame(frame: RenderFrame): void {

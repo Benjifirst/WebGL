@@ -6,6 +6,7 @@ import { formulaField } from '../../ui/formula';
 import { read } from '../../ui/urlState';
 import type { StateRecord } from '../../ui/urlState';
 import { chips, h, segmented, slider, toggle } from '../../ui/widgets';
+import { drawAxes3D } from '../../ui/axes';
 import { tileClipTransform } from '../../core/tiles';
 import { GridMesh } from './mesh';
 import sceneSrc from './scene.glsl?raw';
@@ -441,6 +442,25 @@ export const shapesModule: VizModule = {
       }
       param.gridLines = read.bool(p, 'pl', param.gridLines);
       param.dirty = true;
+    }
+  },
+
+  drawOverlay(ctx, i) {
+    if (!i.axes) return;
+    const cam = camera(i.view.scale * DIST_PER_SCALE);
+    const c = { pos: cam.u_camPos, right: cam.u_camRight, up: cam.u_camUp, fwd: cam.u_camFwd, focal: 1.8 };
+    // Mathematische Koordinaten (z nach oben) → Grafik (y nach oben): (x, y, z) ↦ (x, z, −y)
+    const toGl = (m: V3, k: number, o: V3 = [0, 0, 0]): V3 => [
+      (m[0] - o[0]) * k,
+      (m[2] - o[2]) * k,
+      -(m[1] - o[1]) * k,
+    ];
+    if (mode === 'sdf') drawAxes3D(ctx, i.width, i.height, c, (m) => toGl(m, 1), 1.6);
+    else if (mode === 'implicit') drawAxes3D(ctx, i.width, i.height, c, (m) => toGl(m, 1.5 / bound), bound);
+    else {
+      const [fx, fy, fz, k] = param.fit;
+      const extent = 1.6 / k + Math.hypot(fx, fy, fz);
+      drawAxes3D(ctx, i.width, i.height, c, (m) => toGl(m, k, [fx, fy, fz]), extent);
     }
   },
 

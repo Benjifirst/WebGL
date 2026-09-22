@@ -8,17 +8,21 @@ import { gridModule } from './modules/grid/module';
 import { hyperbolicModule } from './modules/hyperbolic/module';
 import { mandelbrotModule } from './modules/mandelbrot/module';
 import { shapesModule } from './modules/shapes/module';
+import { topologyModule } from './modules/topology/module';
 import type { FrameInfo, ModuleHost, VizModule } from './modules/types';
 import { createControls } from './ui/controls';
 import { ErrorOverlay } from './ui/errorOverlay';
 import { decodeHash, encodeHash } from './ui/urlState';
 import type { DecodedHash } from './ui/urlState';
 
-const modules: readonly VizModule[] = [domainModule, shapesModule, hyperbolicModule, mandelbrotModule, gridModule];
+const modules: readonly VizModule[] = [domainModule, shapesModule, hyperbolicModule, mandelbrotModule, topologyModule, gridModule];
 
 const canvas = document.querySelector<HTMLCanvasElement>('#view')!;
 const overlay = new ErrorOverlay(document.querySelector<HTMLElement>('#error-overlay')!);
 const panel = document.querySelector<HTMLElement>('#panel')!;
+const overlayCanvas = document.querySelector<HTMLCanvasElement>('#overlay')!;
+const overlayCtx = overlayCanvas.getContext('2d')!;
+let axes = true;
 
 let active: VizModule = modules[0]!;
 let disposeModuleUi: (() => void) | null = null;
@@ -52,7 +56,23 @@ const renderer = new Renderer(canvas, {
     if (error) overlay.show(error, source);
     else overlay.hide();
   },
+  onFrame: () => drawOverlay(),
 });
+
+/** Beschriftungsebene in Gerätepixeln (scharfe Schrift), gezeichnet in CSS-Pixeln */
+function drawOverlay(): void {
+  const w = renderer.cssWidth;
+  const h = renderer.cssHeight;
+  const pr = renderer.pixelRatio;
+  if (overlayCanvas.width !== renderer.width || overlayCanvas.height !== renderer.height) {
+    overlayCanvas.width = renderer.width;
+    overlayCanvas.height = renderer.height;
+  }
+  overlayCtx.setTransform(1, 0, 0, 1, 0, 0);
+  overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+  overlayCtx.setTransform(pr, 0, 0, pr, 0, 0);
+  active.drawOverlay?.(overlayCtx, { view: view.state, width: w, height: h, axes });
+}
 
 // ---- Progressive Auflösung: während Interaktion reduziert, danach voll ----
 let interactionTimer = 0;
@@ -104,6 +124,12 @@ const controls = createControls(panel, {
     writeHash();
     return location.href;
   },
+  axes,
+  onAxes(on) {
+    axes = on;
+    renderer.requestRender();
+    scheduleHash();
+  },
   exportSize: (factor) => ({ width: renderer.width * factor, height: renderer.height * factor }),
   async exportImage(factor, smooth, onProgress) {
     const W = renderer.width * factor;
@@ -122,6 +148,10 @@ const controls = createControls(panel, {
       ctx.drawImage(big, 0, 0, W, H);
       big.width = big.height = 0; // Speicher freigeben
     }
+    // Beschriftung im gleichen Verhältnis zum Bild wie auf dem Bildschirm übernehmen
+    const ctx = img.getContext('2d')!;
+    ctx.setTransform(renderer.pixelRatio * factor, 0, 0, renderer.pixelRatio * factor, 0, 0);
+    active.drawOverlay?.(ctx, { view: view.state, width: renderer.cssWidth, height: renderer.cssHeight, axes });
     const blob = await new Promise<Blob | null>((r) => img.toBlob(r, 'image/png'));
     if (!blob) throw new Error('PNG-Kodierung fehlgeschlagen');
     const a = document.createElement('a');
@@ -140,6 +170,12 @@ window.addEventListener('keydown', (e) => {
   if (key === 'h') controls.toggleCollapsed();
   else if (key === 'r') view.state = active.initialView;
   else if (key === 'l') controls.copyLink();
+  else if (key === 'a') {
+    axes = !axes;
+    controls.setAxes(axes);
+    renderer.requestRender();
+    scheduleHash();
+  }
   else return;
   e.preventDefault();
 });
@@ -167,7 +203,7 @@ let lastHash = '';
 function writeHash(): void {
   clearTimeout(hashTimer);
   const v = view.state;
-  const state = active.saveState?.(v) ?? {};
+  const state = { ...(active.saveState?.(v) ?? {}), ax: axes };
   const hash = encodeHash(active.id, v, state);
   if (hash !== location.hash) history.replaceState(null, '', hash);
   lastHash = hash;
@@ -191,6 +227,10 @@ function activate(m: VizModule, state?: DecodedHash | null): void {
   active = m;
   controls.setActive(m.id);
   // Zustand aus dem Link vor dem Aufbau der Controls übernehmen
+  if (state?.params.has('ax')) {
+    axes = state.params.get('ax') === '1';
+    controls.setAxes(axes);
+  }
   const custom = state ? m.loadState?.(state.params, state.view) : undefined;
   disposeModuleUi = m.ui(controls.moduleContainer, host) ?? null;
   renderer.setFragmentSource(m.fragSource);

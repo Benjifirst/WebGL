@@ -11,6 +11,9 @@ export interface ControlsOptions {
   exportSize(factor: number): { width: number; height: number };
   /** smooth: 2× überabgetastet rendern und herunterskalieren (Kantenglättung) */
   exportImage(factor: number, smooth: boolean, onProgress: (fraction: number) => void): Promise<void>;
+  /** Achsen ein/aus */
+  axes: boolean;
+  onAxes(on: boolean): void;
 }
 
 export interface Controls {
@@ -20,6 +23,7 @@ export interface Controls {
   setStatus(text: string): void;
   toggleCollapsed(): void;
   copyLink(): void;
+  setAxes(on: boolean): void;
 }
 
 const EXPORT_FACTORS = [1, 2, 4, 8] as const;
@@ -121,12 +125,18 @@ export function createControls(panel: HTMLElement, opts: ControlsOptions): Contr
   });
 
   const reset = iconButton('⟲', 'Ansicht zurücksetzen (R)', opts.onResetView);
+  const axesButton = iconButton('⊹', 'Achsen und Beschriftung (A)', () => setAxes(axesButton.getAttribute('aria-pressed') !== 'true', true));
+  const setAxes = (on: boolean, notify = false) => {
+    axesButton.setAttribute('aria-pressed', String(on));
+    if (notify) opts.onAxes(on);
+  };
+  setAxes(opts.axes);
 
   panel.replaceChildren(
     h('header', {}, tabs.el, collapse),
     moduleContainer,
     exportBox,
-    h('footer', {}, status, share, exportToggle, reset),
+    h('footer', {}, status, axesButton, share, exportToggle, reset),
   );
 
   return {
@@ -136,6 +146,7 @@ export function createControls(panel: HTMLElement, opts: ControlsOptions): Contr
       status.textContent = text;
     },
     toggleCollapsed: () => setCollapsed(!panel.classList.contains('collapsed')),
+    setAxes: (on) => setAxes(on),
     copyLink: () => share.click(),
   };
 }

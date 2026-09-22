@@ -6,6 +6,7 @@ import type { C } from '../../math/complex';
 import { parse } from '../../math/parser';
 import { formulaField } from '../../ui/formula';
 import { read } from '../../ui/urlState';
+import { drawAxes2D } from '../../ui/axes';
 import type { Node } from '../../math/parser';
 import template from './domain.frag?raw';
 
@@ -69,6 +70,10 @@ export const domainModule: VizModule = {
     contours = read.bool(p, 'c', contours);
     phaseLines = read.bool(p, 'ph', phaseLines);
     gridLines = read.bool(p, 'g', gridLines);
+  },
+
+  drawOverlay(ctx, i) {
+    if (i.axes) drawAxes2D(ctx, i.view, i.width, i.height, { xName: 'Re', yName: 'Im' });
   },
 
   status(x, y) {
