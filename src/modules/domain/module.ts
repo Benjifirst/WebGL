@@ -3,8 +3,9 @@ import { chips, h, toggle } from '../../ui/widgets';
 import { codegen } from './codegen';
 import { evaluate } from './complex';
 import type { C } from './complex';
-import { parse, ParseError } from './parser';
-import type { Node } from './parser';
+import { parse } from '../../math/parser';
+import { formulaField } from '../../ui/formula';
+import type { Node } from '../../math/parser';
 import template from './domain.frag?raw';
 
 const EXAMPLES: readonly { label: string; expr: string }[] = [
@@ -58,61 +59,22 @@ export const domainModule: VizModule = {
 
   ui(container, hst) {
     host = hst;
-    const input = h('input', {
-      class: 'formula',
-      type: 'text',
-      spellcheck: 'false',
-      autocomplete: 'off',
-      autocapitalize: 'off',
-      'aria-label': 'Funktion f(z)',
-    });
-    input.value = expr;
-    const error = h('div', { class: 'formula-error', 'aria-live': 'polite' });
-
-    let timer = 0;
-    const apply = () => {
-      const text = input.value;
-      try {
+    const field = formulaField({
+      label: 'f(z) =',
+      ariaLabel: 'Funktion f(z)',
+      value: expr,
+      apply(text) {
         const next = parse(text);
-        const code = codegen(next);
+        glsl = codegen(next);
         expr = text;
         ast = next;
-        glsl = code;
-        error.textContent = '';
-        input.classList.remove('invalid');
         hst.recompile();
-      } catch (e) {
-        if (!(e instanceof ParseError)) throw e;
-        // Fehler mit Markierung der Position; letzte gültige Funktion rendert weiter.
-        input.classList.add('invalid');
-        const pre = text.slice(0, e.pos);
-        const bad = text.slice(e.pos, Math.max(e.end, e.pos + 1)) || ' ';
-        error.replaceChildren(
-          h('span', {}, `${e.message} (Pos. ${e.pos + 1})`),
-          h('code', {}, pre, h('mark', {}, bad), text.slice(e.pos + bad.length)),
-        );
-      }
-    };
-    input.addEventListener('input', () => {
-      clearTimeout(timer);
-      timer = window.setTimeout(apply, 120);
+      },
     });
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        clearTimeout(timer);
-        apply();
-      }
-    });
-
-    const setExpr = (s: string) => {
-      input.value = s;
-      apply();
-    };
 
     container.append(
-      h('div', { class: 'formula-row' }, h('span', { class: 'formula-label' }, 'f(z) ='), input),
-      error,
-      chips(EXAMPLES.map((ex) => ({ label: ex.label, title: ex.expr, onClick: () => setExpr(ex.expr) }))),
+      field.el,
+      chips(EXAMPLES.map((ex) => ({ label: ex.label, title: ex.expr, onClick: () => field.set(ex.expr) }))),
       h(
         'div',
         { class: 'toggles' },
@@ -134,7 +96,6 @@ export const domainModule: VizModule = {
       ),
     );
     return () => {
-      clearTimeout(timer);
       host = null;
     };
   },

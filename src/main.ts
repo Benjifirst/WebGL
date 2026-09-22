@@ -19,6 +19,13 @@ let active: VizModule = modules[0]!;
 let disposeModuleUi: (() => void) | null = null;
 let hover: [number, number] | null = null;
 
+const frameInfo = () => ({
+  view: view.state,
+  width: renderer.width,
+  height: renderer.height,
+  pixelRatio: renderer.pixelRatio,
+});
+
 const renderer = new Renderer(canvas, {
   uniforms() {
     const v = view.state;
@@ -27,8 +34,11 @@ const renderer = new Renderer(canvas, {
       u_center: [v.cx, v.cy],
       u_scale: v.scale / pr, // Welt pro Gerätepixel
       u_pixelRatio: pr,
-      ...active.uniforms({ view: v, width: renderer.width, height: renderer.height, pixelRatio: pr }),
+      ...active.uniforms(frameInfo()),
     };
+  },
+  afterDraw(gl) {
+    active.draw?.(gl, frameInfo());
   },
   onCompile(error, source) {
     if (error) overlay.show(error, source);
@@ -42,6 +52,7 @@ const host: ModuleHost = {
   get view() {
     return view.state;
   },
+  createProgram: (vs, fs) => renderer.compileProgram(vs, fs),
 };
 
 const view = new ViewController(canvas, {

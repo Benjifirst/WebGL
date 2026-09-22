@@ -1,16 +1,10 @@
 // 3D-Formen per Raymarching (Sphere Tracing) über vorzeichenbehaftete Distanzfelder.
-// Kamera-Basis wird in JS berechnet; y zeigt nach oben.
+// Kamera, Hintergrund und Beleuchtung: scene.glsl (wird vorangestellt).
 
-uniform vec3  u_camPos;
-uniform vec3  u_camRight;
-uniform vec3  u_camUp;
-uniform vec3  u_camFwd;
 uniform int   u_shape;
 uniform vec2  u_param;      // formabhängige Parameter
-uniform int   u_colorMode;  // 0 = neutral, 1 = Normalen
 
 const float TAU = 6.283185307179586;
-const float FOCAL = 1.8;    // Brennweite relativ zur Bildhöhe (≈ 31° vertikales Sichtfeld)
 
 // Torus in der xz-Ebene: Abstand zum Kreis vom Radius R, minus Rohrradius r
 float sdTorus(vec3 p, float R, float r) { return length(vec2(length(p.xz) - R, p.y)) - r; }
@@ -140,8 +134,7 @@ void main() {
   vec3 rd = normalize(uv.x * u_camRight + uv.y * u_camUp + FOCAL * u_camFwd);
   float pixelAngle = 1.0 / (FOCAL * u_resolution.y);  // Öffnungswinkel eines Pixels
 
-  // Hintergrund: dezenter radialer Verlauf
-  vec3 bg = mix(vec3(0.075, 0.08, 0.095), vec3(0.04, 0.043, 0.05), smoothstep(0.0, 1.0, length(uv)));
+  vec3 bg = background(uv);
   vec3 col = bg;
 
   float t = 0.0;
@@ -158,24 +151,11 @@ void main() {
   if (hit) {
     vec3 p = ro + rd * t;
     vec3 n = calcNormal(p, max(1e-4, pixelAngle * t));
-    vec3 lightDir = normalize(vec3(0.55, 0.75, 0.35));
-    float diff = max(dot(n, lightDir), 0.0);
     // Startpunkt des Schattenstrahls sicher außerhalb der Fläche (der Primärstrahl kann
     // bei ungenauen Distanzfeldern leicht eindringen → sonst Streifen durch Selbstschatten)
     vec3 ps = p + n * (0.01 + max(0.0, -map(p) / stepScale()));
-    float shadow = diff > 0.0 ? softShadow(ps, lightDir) : 0.0;
-    float ao = ambientOcclusion(p, n);
-    float spec = pow(max(dot(reflect(rd, n), lightDir), 0.0), 40.0);
-    float fres = pow(1.0 - max(dot(-rd, n), 0.0), 4.0);
-
-    vec3 base = u_colorMode == 1 ? mix(vec3(0.45), 0.5 + 0.5 * n, 0.75) * 0.8 : vec3(0.42, 0.44, 0.48);
-    vec3 lin = vec3(0.0);
-    lin += base * diff * shadow * vec3(1.0, 0.96, 0.9) * 0.9;          // Hauptlicht
-    lin += base * (0.5 + 0.5 * n.y) * vec3(0.35, 0.4, 0.5) * 0.6 * ao; // Himmelslicht
-    lin += base * max(dot(n, -lightDir), 0.0) * 0.08 * ao;             // Gegenlicht
-    lin += spec * shadow * 0.25;
-    lin += fres * vec3(0.4, 0.45, 0.55) * 0.25 * ao;
-    col = pow(lin, vec3(1.0 / 2.2));
+    float shadow = dot(n, LIGHT_DIR) > 0.0 ? softShadow(ps, LIGHT_DIR) : 0.0;
+    col = shade(n, rd, albedo(n, false), shadow, ambientOcclusion(p, n));
     // Weicher Übergang in den Hintergrund in großer Tiefe
     col = mix(col, bg, smoothstep(tMax - 3.0, tMax, t));
   }

@@ -1,13 +1,15 @@
-// Ausdrucksparser für f(z): Tokenizer → Recursive Descent → AST.
+// Ausdrucksparser: Tokenizer → Recursive Descent → AST.
+// Konfigurierbar für komplexe (f(z)) und reelle Ausdrücke (F(x,y,z), x(u,v) …).
 //
 // Grammatik (niedrigste Bindung zuerst):
-//   expr    := term (('+' | '-') term)*
-//   term    := unary (('*' | '/') unary | ⟨implizit⟩ power)*
-//   unary   := ('-' | '+') unary | power
-//   power   := primary ('^' unary)?          // rechtsassoziativ: a^b^c = a^(b^c)
-//   primary := Zahl | z | i | pi | e | Funktion '(' expr ')' | '(' expr ')'
+//   equation := expr ('=' expr)?               // nur falls erlaubt: a = b  ↦  a − b
+//   expr     := term (('+' | '-') term)*
+//   term     := unary (('*' | '/') unary | ⟨implizit⟩ power)*
+//   unary    := ('-' | '+') unary | power
+//   power    := primary ('^' unary)?           // rechtsassoziativ: a^b^c = a^(b^c)
+//   primary  := Zahl | Variable | Konstante | Funktion '(' expr ')' | '(' expr ')'
 //
-// Implizite Multiplikation (2z, 3(z+1), z(z−1), 2 sin(z)) bindet wie '*'.
+// Implizite Multiplikation (2z, 3(z+1), z(z−1), 2 sin(z), xy) bindet wie '*'.
 // Daher gilt −z^2 = −(z^2) und 2z^2 = 2·(z^2).
 
 export const FUNCTIONS = [
@@ -15,16 +17,35 @@ export const FUNCTIONS = [
 ] as const;
 export type FunctionName = (typeof FUNCTIONS)[number];
 
+export const REAL_FUNCTIONS: readonly FunctionName[] = [
+  'exp', 'log', 'ln', 'sqrt', 'sin', 'cos', 'tan', 'sinh', 'cosh', 'tanh', 'abs',
+];
+
 export const CONSTANTS = ['i', 'pi', 'e'] as const;
 export type ConstantName = (typeof CONSTANTS)[number];
 
 export type Node =
   | { type: 'num'; value: number }
-  | { type: 'var' }
+  | { type: 'var'; name: string }
   | { type: 'const'; name: ConstantName }
   | { type: 'neg'; arg: Node }
   | { type: 'bin'; op: '+' | '-' | '*' | '/' | '^'; left: Node; right: Node }
   | { type: 'call'; fn: FunctionName; arg: Node };
+
+export interface ParseOptions {
+  variables: readonly string[];
+  constants: readonly ConstantName[];
+  functions: readonly FunctionName[];
+  /** „links = rechts“ erlauben (ergibt links − rechts) */
+  equation?: boolean;
+}
+
+/** Komplexer Ausdruck in z (Domain Coloring) */
+export const COMPLEX_OPTIONS: ParseOptions = { variables: ['z'], constants: CONSTANTS, functions: FUNCTIONS };
+
+export function realOptions(variables: readonly string[], equation = false): ParseOptions {
+  return { variables, constants: ['pi', 'e'], functions: REAL_FUNCTIONS, equation };
+}
 
 export class ParseError extends Error {
   constructor(message: string, readonly pos: number, readonly end = pos + 1) {
@@ -42,15 +63,21 @@ type Token =
 const NUMBER = /(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/y;
 const IDENT = /[A-Za-z_][A-Za-z_0-9]*/y;
 
-const isKnown = (name: string) =>
-  name === 'z' || (CONSTANTS as readonly string[]).includes(name) || (FUNCTIONS as readonly string[]).includes(name);
+function isKnown(name: string, o: ParseOptions): boolean {
+  return (
+    o.variables.includes(name) ||
+    (o.constants as readonly string[]).includes(name) ||
+    (o.functions as readonly string[]).includes(name)
+  );
+}
 
-/** Zerlegt z. B. „2piz“-Reste wie „piz“ in [pi, z]; null, wenn nicht vollständig möglich. */
-function splitSymbols(name: string): string[] | null {
+/** Zerlegt z. B. „piz“ in [pi, z] oder „xy“ in [x, y]; null, wenn nicht vollständig möglich. */
+function splitSymbols(name: string, o: ParseOptions): string[] | null {
+  const symbols = [...o.variables, ...o.constants].sort((a, b) => b.length - a.length);
   const out: string[] = [];
   let rest = name;
   while (rest) {
-    const sym = ['pi', 'z', 'i', 'e'].find((s) => rest.startsWith(s));
+    const sym = symbols.find((s) => rest.startsWith(s));
     if (!sym) return null;
     out.push(sym);
     rest = rest.slice(sym.length);
@@ -58,7 +85,7 @@ function splitSymbols(name: string): string[] | null {
   return out;
 }
 
-export function tokenize(src: string): Token[] {
+export function tokenize(src: string, o: ParseOptions = COMPLEX_OPTIONS): Token[] {
   const out: Token[] = [];
   let i = 0;
   while (i < src.length) {
@@ -79,8 +106,8 @@ export function tokenize(src: string): Token[] {
     IDENT.lastIndex = i;
     const id = IDENT.exec(src);
     if (id) {
-      // Unbekannte Namen wie „iz“ oder „piz“ als implizites Produkt bekannter Symbole lesen.
-      const parts = isKnown(id[0]) ? [id[0]] : splitSymbols(id[0]) ?? [id[0]];
+      // Unbekannte Namen wie „iz“ oder „xy“ als implizites Produkt bekannter Symbole lesen.
+      const parts = isKnown(id[0], o) ? [id[0]] : splitSymbols(id[0], o) ?? [id[0]];
       for (const name of parts) {
         out.push({ kind: 'ident', name, pos: i, end: i + name.length });
         i += name.length;
@@ -88,8 +115,14 @@ export function tokenize(src: string): Token[] {
       continue;
     }
     // Typografische Varianten tolerieren (Einfügen aus Texten)
-    const op = c === '−' ? '-' : c === '·' || c === '×' ? '*' : c === '÷' ? '/' : c;
-    if ('+-*/^()'.includes(op)) {
+    const op = c === '−' ? '-' : c === '·' || c === '×' ? '*' : c === '÷' ? '/' : c === '²' ? '²' : c;
+    if (op === '²') {
+      // x² ≙ x^2
+      out.push({ kind: 'op', op: '^', pos: i, end: i + 1 }, { kind: 'num', value: 2, pos: i, end: i + 1 });
+      i++;
+      continue;
+    }
+    if ('+-*/^()='.includes(op)) {
       out.push({ kind: 'op', op, pos: i, end: i + 1 });
       i++;
       continue;
@@ -100,8 +133,8 @@ export function tokenize(src: string): Token[] {
   return out;
 }
 
-export function parse(src: string): Node {
-  const tokens = tokenize(src);
+export function parse(src: string, o: ParseOptions = COMPLEX_OPTIONS): Node {
+  const tokens = tokenize(src, o);
   let k = 0;
   const peek = () => tokens[k]!;
   const next = () => tokens[k++]!;
@@ -172,9 +205,9 @@ export function parse(src: string): Node {
         return { type: 'num', value: t.value };
       case 'ident': {
         const name = t.name;
-        if (name === 'z') return { type: 'var' };
-        if ((CONSTANTS as readonly string[]).includes(name)) return { type: 'const', name: name as ConstantName };
-        if ((FUNCTIONS as readonly string[]).includes(name)) {
+        if (o.variables.includes(name)) return { type: 'var', name };
+        if ((o.constants as readonly string[]).includes(name)) return { type: 'const', name: name as ConstantName };
+        if ((o.functions as readonly string[]).includes(name)) {
           const open = peek();
           if (!isOp(open, '(')) throw new ParseError(`„(“ nach ${name} erwartet`, open.pos, open.end);
           k++;
@@ -182,7 +215,8 @@ export function parse(src: string): Node {
           expectClose(open);
           return { type: 'call', fn: name as FunctionName, arg };
         }
-        throw new ParseError(`Unbekannter Name „${name}“`, t.pos, t.end);
+        const hint = o.variables.length ? ` – erlaubt: ${o.variables.join(', ')}` : '';
+        throw new ParseError(`Unbekannter Name „${name}“${hint}`, t.pos, t.end);
       }
       case 'op':
         if (t.op === '(') {
@@ -196,10 +230,15 @@ export function parse(src: string): Node {
     }
   }
 
-  const root = expr();
+  let root = expr();
+  if (o.equation && isOp(peek(), '=')) {
+    k++;
+    root = { type: 'bin', op: '-', left: root, right: expr() };
+  }
   const rest = peek();
   if (rest.kind !== 'eof') {
-    throw new ParseError(isOp(rest, ')') ? 'Unerwartete „)“' : 'Unerwartetes Zeichen', rest.pos, rest.end);
+    const msg = isOp(rest, ')') ? 'Unerwartete „)“' : isOp(rest, '=') ? '„=“ hier nicht erlaubt' : 'Unerwartetes Zeichen';
+    throw new ParseError(msg, rest.pos, rest.end);
   }
   return root;
 }
@@ -208,7 +247,7 @@ export function parse(src: string): Node {
 export function toString(n: Node): string {
   switch (n.type) {
     case 'num': return String(n.value);
-    case 'var': return 'z';
+    case 'var': return n.name;
     case 'const': return n.name;
     case 'neg': return `(-${toString(n.arg)})`;
     case 'bin': return `(${toString(n.left)} ${n.op} ${toString(n.right)})`;

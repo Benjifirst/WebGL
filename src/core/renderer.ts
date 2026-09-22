@@ -24,6 +24,8 @@ export interface RendererHooks {
   onCompile(error: ShaderCompileError | null, source: string): void;
   /** Größe der Zeichenfläche hat sich geändert. */
   onResize?(): void;
+  /** Nach dem Fullscreen-Pass, z. B. für Geometrie mit Tiefentest. */
+  afterDraw?(gl: WebGL2RenderingContext): void;
 }
 
 export class Renderer {
@@ -110,6 +112,23 @@ export class Renderer {
     }
     gl.bindVertexArray(this.vao);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
+    this.hooks.afterDraw?.(gl);
+  }
+
+  /**
+   * Eigenständiges Programm (ohne Präambel) für Module mit eigener Geometrie.
+   * Fehler landen wie beim Modul-Shader im Overlay; Rückgabe null bei Fehler.
+   */
+  compileProgram(vertexSource: string, fragmentSource: string): ProgramInfo | null {
+    try {
+      const p = createProgram(this.gl, vertexSource, fragmentSource);
+      this.hooks.onCompile(null, fragmentSource);
+      return p;
+    } catch (e) {
+      if (!(e instanceof ShaderCompileError)) throw e;
+      this.hooks.onCompile(e, e.stage === 'vertex' ? vertexSource : fragmentSource);
+      return null;
+    }
   }
 
   private observeSize(): void {

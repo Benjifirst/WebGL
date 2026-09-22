@@ -1,3 +1,4 @@
+import type { ProgramInfo } from '../core/gl';
 import type { Uniforms } from '../core/renderer';
 import type { ViewPointerEvent, ViewState } from '../core/view';
 
@@ -17,6 +18,8 @@ export interface ModuleHost {
   /** fragSource geändert → neu kompilieren (bei Fehler bleibt das alte Programm aktiv) */
   recompile(): void;
   readonly view: ViewState;
+  /** Eigenes Programm kompilieren (Fehler → Overlay), null bei Fehler */
+  createProgram(vertexSource: string, fragmentSource: string): ProgramInfo | null;
 }
 
 export interface VizModule {
@@ -31,6 +34,8 @@ export interface VizModule {
   ui(container: HTMLElement, host: ModuleHost): void | (() => void);
   /** true bei 'down' = Pointer übernehmen (kein Pan) */
   onPointer?(e: ViewPointerEvent, host: ModuleHost): boolean;
+  /** Zusätzliche Geometrie nach dem Fullscreen-Pass zeichnen (Tiefenpuffer verfügbar) */
+  draw?(gl: WebGL2RenderingContext, frame: FrameInfo): void;
   /** Statuszeile für die Cursorposition (Weltkoordinaten) */
   status?(x: number, y: number): string;
   /** Erlaubter Bereich für view.scale (Standard: MIN_SCALE…MAX_SCALE) */

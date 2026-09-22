@@ -1,14 +1,9 @@
 // AST → GLSL-Ausdruck vom Typ vec2 (komplexe Zahl als (Re, Im)).
 // Semantik identisch zu evaluate() in complex.ts.
-import { integerExponent } from './complex';
-import type { FunctionName, Node } from './parser';
+import type { FunctionName, Node } from '../../math/parser';
+import { glslFloat, integerExponent } from '../../math/real';
 
-/** Float-Literal, das GLSL ES 3.00 sicher als float liest. */
-export function glslFloat(v: number): string {
-  if (!Number.isFinite(v)) throw new Error(`Nicht darstellbare Zahl: ${v}`);
-  const s = String(v);
-  return /[.e]/.test(s) ? s : `${s}.0`;
-}
+export { glslFloat };
 
 const CALLS: Record<FunctionName, string> = {
   exp: 'cexp', log: 'clog', ln: 'clog', sqrt: 'csqrt', sin: 'csin', cos: 'ccos', tan: 'ctan',

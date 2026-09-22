@@ -1,6 +1,7 @@
 // Komplexe Arithmetik in TS (double) – Spiegel der GLSL-Funktionen in domain.frag.
 // Dient als Referenz für Tests und für die f(z)-Anzeige unter dem Cursor.
-import type { Node } from './parser';
+import type { Node } from '../../math/parser';
+import { integerExponent } from '../../math/real';
 
 export type C = readonly [number, number];
 
@@ -88,10 +89,4 @@ export function evaluate(n: Node, z: C): C {
       }
     }
   }
-}
-
-/** Kleiner ganzzahliger Exponent (auch negativ) → Potenz per Multiplikation. */
-export function integerExponent(n: Node): number | null {
-  const v = n.type === 'num' ? n.value : n.type === 'neg' && n.arg.type === 'num' ? -n.arg.value : NaN;
-  return Number.isInteger(v) && Math.abs(v) <= 64 ? v : null;
 }

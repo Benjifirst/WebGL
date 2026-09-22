@@ -52,7 +52,7 @@ export function createContext(canvas: HTMLCanvasElement): WebGL2RenderingContext
   const gl = canvas.getContext('webgl2', {
     alpha: false,
     antialias: false,
-    depth: false,
+    depth: true, // für Mesh-Module (parametrische Flächen)
     stencil: false,
     premultipliedAlpha: false,
     preserveDrawingBuffer: false,
