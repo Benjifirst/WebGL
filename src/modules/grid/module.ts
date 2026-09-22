@@ -1,4 +1,5 @@
 import type { ModuleHost, VizModule } from '../types';
+import { toggle } from '../../ui/widgets';
 import gridSource from './grid.frag?raw';
 
 let source = gridSource;
@@ -23,7 +24,7 @@ function smoothstep(a: number, b: number, x: number): number {
 
 export const gridModule: VizModule = {
   id: 'grid',
-  name: 'Koordinatengitter',
+  name: 'Gitter',
   initialView: { cx: 0, cy: 0, scale: 0.01 },
 
   get fragSource() {
@@ -47,25 +48,14 @@ export const gridModule: VizModule = {
 
   ui(container, h) {
     host = h;
-    const label = document.createElement('label');
-    label.className = 'row';
-    const box = document.createElement('input');
-    box.type = 'checkbox';
-    box.checked = injectError;
-    const text = document.createElement('span');
-    const update = () => {
-      text.textContent = injectError
-        ? `Shader-Fehler aktiv (erwartet: Zeile ${withInjectedError(source).line})`
-        : 'Shader-Fehler provozieren';
-    };
-    box.addEventListener('change', () => {
-      injectError = box.checked;
-      update();
+    const label = () =>
+      injectError ? `Shader-Fehler aktiv (Zeile ${withInjectedError(source).line})` : 'Shader-Fehler provozieren';
+    const t = toggle(label(), injectError, (v) => {
+      injectError = v;
+      t.lastElementChild!.textContent = label();
       h.recompile();
     });
-    update();
-    label.append(box, text);
-    container.append(label);
+    container.append(t);
     return () => {
       host = null;
     };

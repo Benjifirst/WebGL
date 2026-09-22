@@ -1,4 +1,5 @@
 import type { VizModule } from '../modules/types';
+import { h, segmented } from './widgets';
 
 export interface ControlsOptions {
   modules: readonly VizModule[];
@@ -14,36 +15,38 @@ export interface Controls {
 }
 
 export function createControls(panel: HTMLElement, opts: ControlsOptions): Controls {
-  panel.replaceChildren();
+  const tabs = segmented(
+    opts.modules.map((m) => ({ value: m.id, label: m.name })),
+    opts.modules[0]?.id ?? '',
+    (id) => {
+      const m = opts.modules.find((x) => x.id === id);
+      if (m) opts.onSelect(m);
+    },
+    'Modul',
+  );
 
-  const header = document.createElement('div');
-  header.className = 'row';
-  const select = document.createElement('select');
-  select.setAttribute('aria-label', 'Modul');
-  for (const m of opts.modules) select.append(new Option(m.name, m.id));
-  select.addEventListener('change', () => {
-    const m = opts.modules.find((x) => x.id === select.value);
-    if (m) opts.onSelect(m);
+  const collapse = h('button', { type: 'button', class: 'icon', title: 'Panel ein-/ausklappen', 'aria-expanded': 'true' }, '–');
+  collapse.addEventListener('click', () => {
+    const collapsed = panel.classList.toggle('collapsed');
+    collapse.textContent = collapsed ? '+' : '–';
+    collapse.setAttribute('aria-expanded', String(!collapsed));
   });
-  const reset = document.createElement('button');
-  reset.type = 'button';
-  reset.textContent = 'Ansicht zurücksetzen';
+
+  const reset = h('button', { type: 'button', class: 'icon', title: 'Ansicht zurücksetzen' }, '⟲');
   reset.addEventListener('click', opts.onResetView);
-  header.append(select, reset);
 
-  const moduleContainer = document.createElement('div');
-  moduleContainer.className = 'module-controls';
+  const moduleContainer = h('div', { class: 'module-controls' });
+  const status = h('div', { class: 'status' });
 
-  const status = document.createElement('div');
-  status.className = 'status';
-
-  panel.append(header, moduleContainer, status);
+  panel.replaceChildren(
+    h('header', {}, tabs.el, collapse),
+    moduleContainer,
+    h('footer', {}, status, reset),
+  );
 
   return {
     moduleContainer,
-    setActive(id) {
-      select.value = id;
-    },
+    setActive: (id) => tabs.set(id),
     setStatus(text) {
       status.textContent = text;
     },

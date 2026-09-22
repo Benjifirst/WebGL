@@ -31,4 +31,8 @@ export interface VizModule {
   ui(container: HTMLElement, host: ModuleHost): void | (() => void);
   /** true bei 'down' = Pointer übernehmen (kein Pan) */
   onPointer?(e: ViewPointerEvent, host: ModuleHost): boolean;
+  /** Statuszeile für die Cursorposition (Weltkoordinaten) */
+  status?(x: number, y: number): string;
+  /** Erlaubter Bereich für view.scale (Standard: MIN_SCALE…MAX_SCALE) */
+  readonly scaleRange?: readonly [number, number];
 }

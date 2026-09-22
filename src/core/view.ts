@@ -32,8 +32,15 @@ export function worldToScreen(v: ViewState, size: Size, x: number, y: number): [
  * Der Weltpunkt p unter dem Cursor bleibt invariant:
  *   s' = s / k,   c' = p + (c − p)·s'/s
  */
-export function zoomAt(v: ViewState, size: Size, px: number, py: number, k: number): ViewState {
-  const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, v.scale / k));
+export function zoomAt(
+  v: ViewState,
+  size: Size,
+  px: number,
+  py: number,
+  k: number,
+  limits: readonly [number, number] = [MIN_SCALE, MAX_SCALE],
+): ViewState {
+  const scale = Math.min(limits[1], Math.max(limits[0], v.scale / k));
   const ratio = scale / v.scale;
   const [wx, wy] = screenToWorld(v, size, px, py);
   return { cx: wx + (v.cx - wx) * ratio, cy: wy + (v.cy - wy) * ratio, scale };
@@ -76,6 +83,8 @@ interface TrackedPointer {
 export class ViewController {
   private _state: ViewState = { cx: 0, cy: 0, scale: 0.01 };
   private pointers = new Map<number, TrackedPointer>();
+  /** Erlaubter Bereich für scale (z. B. Kameraabstand im 3D-Modul) */
+  scaleLimits: readonly [number, number] = [MIN_SCALE, MAX_SCALE];
 
   constructor(private readonly el: HTMLElement, private readonly opts: ViewControllerOptions) {
     el.style.touchAction = 'none';
@@ -92,7 +101,8 @@ export class ViewController {
   }
 
   set state(v: ViewState) {
-    this._state = { ...v, scale: Math.min(MAX_SCALE, Math.max(MIN_SCALE, v.scale)) };
+    const [lo, hi] = this.scaleLimits;
+    this._state = { ...v, scale: Math.min(hi, Math.max(lo, v.scale)) };
     this.opts.onChange(this._state);
   }
 
@@ -113,7 +123,7 @@ export class ViewController {
     else if (e.deltaMode === WheelEvent.DOM_DELTA_PAGE) dy *= this.el.clientHeight;
     // ctrlKey = Trackpad-Pinch (Chrome/Edge/Firefox): kleinere Deltas, höhere Empfindlichkeit.
     const k = Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.0015));
-    this.state = zoomAt(this._state, this.size, px, py, k);
+    this.state = zoomAt(this._state, this.size, px, py, k, this.scaleLimits);
   };
 
   private emit(kind: ViewPointerEvent['kind'], e: PointerEvent): boolean {
@@ -157,7 +167,7 @@ export class ViewController {
       const after = pinchGeometry(a[1], b[1]);
       // Erst verschieben (Mittelpunkt folgt den Fingern), dann um den neuen Mittelpunkt zoomen.
       let v = panBy(this._state, after.mx - before.mx, after.my - before.my);
-      if (before.d > 0 && after.d > 0) v = zoomAt(v, this.size, after.mx, after.my, after.d / before.d);
+      if (before.d > 0 && after.d > 0) v = zoomAt(v, this.size, after.mx, after.my, after.d / before.d, this.scaleLimits);
       this.state = v;
     } else {
       const dx = px - p.x;

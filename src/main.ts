@@ -1,13 +1,15 @@
 import './style.css';
 import { Renderer } from './core/renderer';
-import { ViewController } from './core/view';
+import { MAX_SCALE, MIN_SCALE, ViewController } from './core/view';
 import type { ViewState } from './core/view';
+import { domainModule } from './modules/domain/module';
 import { gridModule } from './modules/grid/module';
+import { shapesModule } from './modules/shapes/module';
 import type { ModuleHost, VizModule } from './modules/types';
 import { createControls } from './ui/controls';
 import { ErrorOverlay } from './ui/errorOverlay';
 
-const modules: readonly VizModule[] = [gridModule];
+const modules: readonly VizModule[] = [domainModule, shapesModule, gridModule];
 
 const canvas = document.querySelector<HTMLCanvasElement>('#view')!;
 const overlay = new ErrorOverlay(document.querySelector<HTMLElement>('#error-overlay')!);
@@ -68,6 +70,10 @@ function fmt(n: number, scale: number): string {
 
 function updateStatus(): void {
   const v: ViewState = view.state;
+  if (active.status) {
+    controls.setStatus(hover ? active.status(hover[0], hover[1]) : '');
+    return;
+  }
   const pos = hover ? `x ${fmt(hover[0], v.scale)}  y ${fmt(hover[1], v.scale)}  ·  ` : '';
   controls.setStatus(`${pos}${v.scale.toExponential(2)} / px`);
 }
@@ -79,6 +85,7 @@ function activate(m: VizModule): void {
   controls.setActive(m.id);
   disposeModuleUi = m.ui(controls.moduleContainer, host) ?? null;
   renderer.setFragmentSource(m.fragSource);
+  view.scaleLimits = m.scaleRange ?? [MIN_SCALE, MAX_SCALE];
   view.state = m.initialView;
 }
 
